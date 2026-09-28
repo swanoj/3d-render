@@ -1,11 +1,11 @@
-import react from '@vitejs/plugin-react'
+import { reactRouter } from '@react-router/dev/vite'
 import { defineConfig } from 'vite'
 
-// https://vite.dev/config/
+// https://reactrouter.com/start/framework/installation
 export default defineConfig({
-  plugins: [react()],
+  plugins: [reactRouter()],
   build: {
-    // three.js and React Three Fiber are most of the bundle; warn when it grows past its starting size.
+    // three.js and React Three Fiber make up the 3D chunk, which only loads after the page has rendered.
     chunkSizeWarningLimit: 1300,
   },
 })
