@@ -14,13 +14,15 @@ import type { Act, Night, NightView, ShownAct } from './types'
 
 /**
  * A night with its reveal phases applied at `now`: an act whose phase hasn't dropped comes back as a redacted
- * entry, and its name never reaches the page.
+ * entry, and its name never reaches the page. Reveals follow the real clock: a previewed time (`?now=…`) can show
+ * a name as still under wraps, but never reveal one early.
  */
 function viewNight(night: Night, now: number): NightView {
+  const revealedBy = Math.min(now, Date.now())
   const dropAt = (act: Act) => (act.phase && act.phase > 1 ? night.phases?.find((p) => p.phase === act.phase)?.at : undefined)
   const hidden = (act: Act) => {
     const at = dropAt(act)
-    return at !== undefined && Date.parse(at) > now
+    return at !== undefined && Date.parse(at) > revealedBy
   }
   const acts: ShownAct[] = night.lineup.map((act) =>
     hidden(act)
