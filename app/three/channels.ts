@@ -81,7 +81,7 @@ export function loadTvAssets() {
 const tints = new Map<string, HTMLCanvasElement>()
 
 /** A brand mark recoloured (the SVGs are drawn in charcoal), cached per colour and size. */
-function tinted(image: HTMLImageElement, color: string, width: number) {
+export function tinted(image: HTMLImageElement, color: string, width: number) {
   const height = Math.round((width * image.naturalHeight) / image.naturalWidth)
   const key = `${image.src}|${color}|${width}`
   let canvas = tints.get(key)

@@ -1,6 +1,8 @@
 /*
  * The CRT picture: curved glass, scanlines, an aperture grille, a little colour fringing, a slow rolling band and
  * a static burst between channels. Nothing strobes: the brightest moment is the power-on line opening once.
+ * Works in linear colour (the channel texture is tagged sRGB) and converts on output, so it sits correctly in
+ * the post-processed scene.
  */
 
 export const screenVertex = /* glsl */ `
@@ -19,6 +21,8 @@ uniform sampler2D uContent;
 uniform float uTime;
 uniform float uStatic;
 uniform float uPower;
+// Above 1 so the brightest parts of the picture glow (bloom) like a real tube.
+uniform float uBoost;
 
 varying vec2 vUv;
 
@@ -86,6 +90,7 @@ void main() {
   // Reflection on the glass.
   color += vec3(1.0, 0.95, 0.9) * 0.05 * smoothstep(0.5, 0.0, length(vUv - vec2(0.27, 0.8)));
 
-  gl_FragColor = vec4(color * inside, 1.0);
+  gl_FragColor = vec4(color * inside * uBoost, 1.0);
+  #include <colorspace_fragment>
 }
 `
