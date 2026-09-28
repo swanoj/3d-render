@@ -12,6 +12,9 @@ export const FOV = 30
 
 type Vec3 = [number, number, number]
 
+/** The mushroom lamp on top of the set. */
+export const TABLE_LAMP: Vec3 = [-0.8, TOP_Y, 0.15]
+
 export interface Shot {
   position: Vec3
   target: Vec3

@@ -2,7 +2,8 @@
  * The CRT picture: curved glass, scanlines, an aperture grille, a little colour fringing, a slow rolling band and
  * a static burst between channels. Nothing strobes: the brightest moment is the power-on line opening once.
  * Works in linear colour (the channel texture is tagged sRGB) and converts on output, so it sits correctly in
- * the post-processed scene.
+ * the post-processed scene. On Casa Cam the channel texture is only captions, laid over the security camera's
+ * picture of the room.
  */
 
 export const screenVertex = /* glsl */ `
@@ -23,11 +24,21 @@ uniform float uStatic;
 uniform float uPower;
 // Above 1 so the brightest parts of the picture glow (bloom) like a real tube.
 uniform float uBoost;
+// Casa Cam: the camera's picture of the room (linear, unclamped), and 1 while that channel is on.
+uniform sampler2D uCam;
+uniform float uCamMix;
 
 varying vec2 vUv;
 
 float rand(vec2 co) {
   return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+// A cheap security camera: black and white with a green cast, and shadows lifted.
+float camLuma(vec2 p) {
+  vec3 c = max(texture2D(uCam, p).rgb, 0.0);
+  c = c / (1.0 + c);
+  return pow(max(dot(c, vec3(0.299, 0.587, 0.114)), 0.0), 0.75) * 1.3;
 }
 
 // Curved glass: the picture bows outward toward the corners.
@@ -65,11 +76,19 @@ void main() {
   float jitter = (rand(vec2(floor(uv.y * 140.0), floor(uTime * 24.0))) - 0.5) * 0.035 * uStatic;
   vec2 picture = vec2(uv.x + jitter, vy);
   float fringe = 0.0014 + 0.006 * uStatic;
+  vec4 content = texture2D(uContent, picture);
   vec3 color = vec3(
     texture2D(uContent, picture + vec2(fringe, 0.0)).r,
-    texture2D(uContent, picture).g,
+    content.g,
     texture2D(uContent, picture - vec2(fringe, 0.0)).b
   );
+
+  if (uCamMix > 0.5) {
+    vec3 feed = vec3(camLuma(picture + vec2(fringe, 0.0)), camLuma(picture), camLuma(picture - vec2(fringe, 0.0)));
+    feed *= vec3(0.8, 1.0, 0.88);
+    feed += (rand(floor(picture * vec2(320.0, 240.0)) + fract(uTime * 11.0)) - 0.5) * 0.08;
+    color = mix(feed, color, content.a);
+  }
 
   float snow = rand(uv * vec2(420.0, 320.0) + fract(uTime * 7.3));
   color = mix(color, vec3(snow * 0.85), uStatic * 0.85);
@@ -88,7 +107,8 @@ void main() {
   color = color * shown + vec3(1.0, 0.93, 0.86) * line * 1.4;
 
   // Reflection on the glass.
-  color += vec3(1.0, 0.95, 0.9) * 0.05 * smoothstep(0.5, 0.0, length(vUv - vec2(0.27, 0.8)));
+  // (smoothstep needs its edges in order: reversed edges are undefined and some GPUs draw them wrongly.)
+  color += vec3(1.0, 0.95, 0.9) * 0.05 * (1.0 - smoothstep(0.0, 0.5, length(vUv - vec2(0.27, 0.8))));
 
   gl_FragColor = vec4(color * inside * uBoost, 1.0);
   #include <colorspace_fragment>

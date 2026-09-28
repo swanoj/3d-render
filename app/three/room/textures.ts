@@ -265,6 +265,35 @@ export function dialTexture(count: number) {
   })
 }
 
+/** A soft, uneven puff of haze in white on clear, fading out well inside its edges; sprites tint it. */
+export function hazeTexture() {
+  return canvasTexture(256, 256, (ctx) => {
+    let seed = 11
+    const random = () => {
+      seed = (seed * 16807) % 2147483647
+      return seed / 2147483647
+    }
+    for (let i = 0; i < 26; i++) {
+      const angle = random() * Math.PI * 2
+      const distance = random() * 60
+      const x = 128 + Math.cos(angle) * distance
+      const y = 128 + Math.sin(angle) * distance
+      const radius = 30 + random() * 50
+      const blob = ctx.createRadialGradient(x, y, 0, x, y, radius)
+      blob.addColorStop(0, `rgba(255, 255, 255, ${0.1 + random() * 0.12})`)
+      blob.addColorStop(1, 'rgba(255, 255, 255, 0)')
+      ctx.fillStyle = blob
+      ctx.fillRect(0, 0, 256, 256)
+    }
+    ctx.globalCompositeOperation = 'destination-in'
+    const edge = ctx.createRadialGradient(128, 128, 20, 128, 128, 126)
+    edge.addColorStop(0, 'rgba(255, 255, 255, 1)')
+    edge.addColorStop(1, 'rgba(255, 255, 255, 0)')
+    ctx.fillStyle = edge
+    ctx.fillRect(0, 0, 256, 256)
+  })
+}
+
 /** The maker's plate: engraved brass. */
 export function badgeTexture() {
   return canvasTexture(256, 64, (ctx) => {
