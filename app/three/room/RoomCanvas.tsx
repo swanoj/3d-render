@@ -51,6 +51,11 @@ interface RoomCanvasProps {
   /** Called once the first frames have drawn, so the flat fallback TV can step aside. */
   onReady?: () => void
   /**
+   * Called if the browser takes the WebGL context away (a GPU reset, memory pressure, a graphics switch), which
+   * leaves the canvas blank; the page brings the flat set back and builds the room again.
+   */
+  onLost?: () => void
+  /**
    * Called every frame with where the left edge of the picture is on screen (in canvas pixels) and how visible the
    * "tap the telly" note beside it should be, so the page can keep its note pointing at the set.
    */
@@ -64,7 +69,7 @@ function forcedQuality(): Quality | null {
 }
 
 export default function RoomCanvas(props: RoomCanvasProps) {
-  const { active, reducedMotion, onReady } = props
+  const { active, reducedMotion, onReady, onLost } = props
   // Full effects unless the device looks modest; the monitor steps down if frames drop below 50 a second.
   const [quality, setQuality] = useState<Quality>(
     () => forcedQuality() ?? ((navigator.hardwareConcurrency ?? 8) <= 4 ? 'low' : 'high'),
@@ -83,6 +88,7 @@ export default function RoomCanvas(props: RoomCanvasProps) {
     >
       <PerformanceMonitor onDecline={() => setQuality(forcedQuality() ?? 'low')} />
       <FirstFrames onReady={onReady} />
+      <ContextWatch onLost={onLost} />
       <Room {...props} quality={quality} />
       {quality === 'high' ? (
         <EffectComposer multisampling={4}>
@@ -112,6 +118,21 @@ function FirstFrames({ onReady }: { onReady?: () => void }) {
     frames.current += 1
     if (frames.current === 3) onReady?.()
   })
+  return null
+}
+
+/** Reports a lost WebGL context. Unmounting removes the listener first, so the room's own teardown isn't reported. */
+function ContextWatch({ onLost }: { onLost?: () => void }) {
+  const canvas = useThree((state) => state.gl.domElement)
+  useEffect(() => {
+    if (!onLost) return
+    const lost = () => {
+      console.warn('Casa TV lost its WebGL context; showing the flat set and rebuilding the room.')
+      onLost()
+    }
+    canvas.addEventListener('webglcontextlost', lost)
+    return () => canvas.removeEventListener('webglcontextlost', lost)
+  }, [canvas, onLost])
   return null
 }
 

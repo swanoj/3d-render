@@ -36,9 +36,9 @@ float rand(vec2 co) {
 
 // A cheap security camera: black and white with a green cast, and shadows lifted.
 float camLuma(vec2 p) {
-  vec3 c = texture2D(uCam, p).rgb;
+  vec3 c = max(texture2D(uCam, p).rgb, 0.0);
   c = c / (1.0 + c);
-  return pow(dot(c, vec3(0.299, 0.587, 0.114)), 0.75) * 1.3;
+  return pow(max(dot(c, vec3(0.299, 0.587, 0.114)), 0.0), 0.75) * 1.3;
 }
 
 // Curved glass: the picture bows outward toward the corners.
@@ -107,7 +107,8 @@ void main() {
   color = color * shown + vec3(1.0, 0.93, 0.86) * line * 1.4;
 
   // Reflection on the glass.
-  color += vec3(1.0, 0.95, 0.9) * 0.05 * smoothstep(0.5, 0.0, length(vUv - vec2(0.27, 0.8)));
+  // (smoothstep needs its edges in order: reversed edges are undefined and some GPUs draw them wrongly.)
+  color += vec3(1.0, 0.95, 0.9) * 0.05 * (1.0 - smoothstep(0.0, 0.5, length(vUv - vec2(0.27, 0.8))));
 
   gl_FragColor = vec4(color * inside * uBoost, 1.0);
   #include <colorspace_fragment>

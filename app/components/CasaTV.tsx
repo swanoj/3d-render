@@ -32,6 +32,9 @@ export function CasaTV({ data }: { data: TvData }) {
   const [tuner, setTuner] = useState({ channel: 0, flicks: 0 })
   const [lamps, setLamps] = useState<Lamps>({ floor: true, table: true })
   const [roomReady, setRoomReady] = useState(false)
+  // How many times the room has been rebuilt after the browser took its WebGL context away. After a couple of
+  // tries the flat set stays.
+  const [rebuilds, setRebuilds] = useState(0)
   const [sectionRef, near] = useInView<HTMLElement>({ once: true, rootMargin: '600px 0px' })
   const [stageRef, visible] = useInView<HTMLDivElement>({ rootMargin: '80px 0px' })
   const webgl = useWebGLSupport()
@@ -59,6 +62,11 @@ export function CasaTV({ data }: { data: TvData }) {
       }),
     [],
   )
+
+  const roomLost = useCallback(() => {
+    setRoomReady(false)
+    setRebuilds((count) => count + 1)
+  }, [])
 
   const toggleLamp = useCallback((lamp: keyof Lamps) => {
     setLamps((state) => ({ ...state, [lamp]: !state[lamp] }))
@@ -112,8 +120,8 @@ export function CasaTV({ data }: { data: TvData }) {
             reducedMotion={reducedMotion}
             onNext={() => tune((at) => at + 1)}
           />
-          {webgl && near && (
-            <WebGLBoundary name="TV">
+          {webgl && near && rebuilds <= 2 && (
+            <WebGLBoundary key={rebuilds} name="TV">
               <Suspense fallback={null}>
                 <RoomCanvas
                   channel={channel}
@@ -127,6 +135,7 @@ export function CasaTV({ data }: { data: TvData }) {
                   lamps={lamps}
                   onLamp={toggleLamp}
                   onReady={() => setRoomReady(true)}
+                  onLost={roomLost}
                   onNoteMove={placeNote}
                 />
               </Suspense>
