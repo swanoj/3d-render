@@ -17,6 +17,7 @@ import {
   SRGBColorSpace,
   WebGLRenderTarget,
   type Mesh,
+  type MeshBasicMaterial,
   type PerspectiveCamera,
   type PointLight,
   type ShaderMaterial,
@@ -25,7 +26,21 @@ import { CHANNELS, drawChannel, SCREEN, type ChannelId, type TvAssets, type TvDa
 import { screenFragment, screenVertex } from '../tv-screen.glsl'
 import { TableLamp } from './Furniture'
 import { CENTRE_Y, CONTROLS_X, FRONT_Z, SCREEN_SIZE, SCREEN_X, TABLE_LAMP, TOP_Y, TV } from './layout'
-import { badgeTexture, dialTexture, fabricTexture, knurlTexture, walnutTexture } from './textures'
+import {
+  badgeTexture,
+  dialTexture,
+  fabricTexture,
+  glowTexture,
+  knurlTexture,
+  screenGlowTexture,
+  walnutTexture,
+} from './textures'
+
+// The halo of light around the picture: a plane this much larger than the screen.
+const HALO = { width: SCREEN_SIZE.width + 0.95, height: SCREEN_SIZE.height + 0.85 }
+
+/** Glow and halos never take clicks: they belong to the set, but the set's own parts should get them. */
+const noRaycast = () => null
 
 // How much each channel's picture lights the room (the credits are dark; the rules are cream paper).
 const SCREEN_GLOW: Record<ChannelId, number> = { next: 1, lineup: 0.45, rules: 1.15, vinyl: 0.8, test: 1, cam: 0.6 }
@@ -222,7 +237,7 @@ function useScreen(
         const osd = MathUtils.clamp((state.osdUntil - now) / 400, 0, 1)
         // A drawing error must never stop the render loop: the room keeps running with the last good picture.
         try {
-          drawChannel(ctx, shown.current, data, state.clock, Date.now(), assets, osd, true)
+          drawChannel(ctx, shown.current, data, state.clock, Date.now() + data.offset, assets, osd, true)
           ;(u.uContent.value as CanvasTexture).needsUpdate = true
         } catch (error) {
           if (!state.failed) console.warn('Casa TV could not draw a channel.', error)
@@ -277,7 +292,17 @@ export function Television({
     }),
     [],
   )
-  const textures = useMemo(() => ({ wood: walnutTexture(), fabric: fabricTexture(), knurl: knurlTexture() }), [])
+  const textures = useMemo(
+    () => ({
+      wood: walnutTexture(),
+      fabric: fabricTexture(),
+      knurl: knurlTexture(),
+      halo: screenGlowTexture(HALO.width, HALO.height, SCREEN_SIZE.width, SCREEN_SIZE.height),
+      glow: glowTexture(),
+    }),
+    [],
+  )
+  const halo = useRef<MeshBasicMaterial>(null)
   // Lettered textures wait for the brand fonts, which load with the channel artwork.
   const lettering = useMemo(() => (assets ? { dial: dialTexture(CHANNELS.length), badge: badgeTexture() } : null), [assets])
   const knob = useRef<Mesh>(null)
@@ -305,6 +330,11 @@ export function Television({
       light.color.lerp(lightColour.current, ease)
       const goal = 2.4 * SCREEN_GLOW[current.id] * (hovered ? 1.25 : 1)
       light.intensity = MathUtils.lerp(light.intensity, goal, ease)
+      // The picture's glow spills over the surround in the same colour: the bloom, without a bloom pass.
+      if (halo.current) {
+        halo.current.color.copy(light.color)
+        halo.current.opacity = MathUtils.lerp(halo.current.opacity, 0.55 * SCREEN_GLOW[current.id], ease)
+      }
     }
   })
 
@@ -384,6 +414,17 @@ export function Television({
           fragmentShader={screenFragment}
           uniforms={uniforms}
           toneMapped={false}
+        />
+      </mesh>
+      <mesh position={[SCREEN_X, CENTRE_Y, FRONT_Z + 0.05]} raycast={noRaycast}>
+        <planeGeometry args={[HALO.width, HALO.height]} />
+        <meshBasicMaterial
+          ref={halo}
+          map={textures.halo}
+          opacity={0}
+          transparent
+          depthWrite={false}
+          blending={AdditiveBlending}
         />
       </mesh>
       {/* Reflections only: added over the picture so the glass catches the lamps without dimming it. */}
@@ -482,6 +523,9 @@ export function Television({
         <sphereGeometry args={[0.016, 12, 12]} />
         <meshBasicMaterial color={[5, 0.6, 0.25]} toneMapped={false} />
       </mesh>
+      <sprite position={[CONTROLS_X + 0.19, CENTRE_Y - 0.74, FRONT_Z + 0.05]} scale={0.16} raycast={noRaycast}>
+        <spriteMaterial map={textures.glow} color="#ff4a2a" opacity={0.7} transparent depthWrite={false} blending={AdditiveBlending} />
+      </sprite>
 
       <TableLamp position={TABLE_LAMP} reducedMotion={reducedMotion} on={lamp} onToggle={onLamp} />
 

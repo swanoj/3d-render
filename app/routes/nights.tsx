@@ -3,6 +3,7 @@ import { brand } from '../brand/brand'
 import { NightRow } from '../components/NightRow'
 import { getNights } from '../content/content.server'
 import type { RouteHandle } from '../lib/mood'
+import { requestNow } from '../lib/nightOf'
 import { seo } from '../lib/seo'
 
 export const handle: RouteHandle = { mood: 'charcoal' }
@@ -11,8 +12,8 @@ export function meta() {
   return seo({ title: 'Nights', description: `Every Club Casa night at the ${brand.venue.name}, St Kilda.` })
 }
 
-export async function loader() {
-  return getNights()
+export async function loader({ request }: Route.LoaderArgs) {
+  return getNights(requestNow(request))
 }
 
 export default function Nights({ loaderData }: Route.ComponentProps) {

@@ -111,7 +111,7 @@ export function FloorLamp({ reducedMotion, aim, on, onToggle, ...props }: WithMo
     if (fill.current) fill.current.intensity = 5 * level * power
     if (shade.current) shade.current.emissiveIntensity = (0.6 + 1.2 * level) * power
     bulb.current?.color.lerpColors(BULB.off, BULB.on, power)
-    if (glow.current) glow.current.opacity = (0.18 + 0.28 * level) * power
+    if (glow.current) glow.current.opacity = (0.24 + 0.34 * level) * power
     if (beam.current) beam.current.uniforms.uStrength.value = (0.05 + 0.08 * level) * power
   })
 
@@ -182,6 +182,8 @@ export function FloorLamp({ reducedMotion, aim, on, onToggle, ...props }: WithMo
 export function TableLamp({ reducedMotion, on, onToggle, ...props }: WithMotion & Switchable) {
   const bulb = useRef<PointLight>(null)
   const dome = useRef<MeshStandardMaterial>(null)
+  const glow = useRef<SpriteMaterial>(null)
+  const halo = useMemo(() => glowTexture(), [])
   const lit = useLampLevel(on, reducedMotion, 3.4)
   const handlers = useSwitch(onToggle)
 
@@ -189,6 +191,7 @@ export function TableLamp({ reducedMotion, on, onToggle, ...props }: WithMotion 
     const { power, level } = lit(clock.elapsedTime, delta)
     if (bulb.current) bulb.current.intensity = 4 * level * power
     if (dome.current) dome.current.emissiveIntensity = (0.8 + 1.4 * level) * power
+    if (glow.current) glow.current.opacity = (0.22 + 0.3 * level) * power
   })
 
   return (
@@ -213,6 +216,9 @@ export function TableLamp({ reducedMotion, on, onToggle, ...props }: WithMotion 
         />
       </mesh>
       <pointLight ref={bulb} position={[0, 0.26, 0.05]} color="#ffa257" intensity={4} distance={5} decay={1.6} />
+      <sprite position={[0, 0.3, 0.06]} scale={[1.1, 1.1, 1]} raycast={noRaycast}>
+        <spriteMaterial ref={glow} map={halo} color="#ff9a4d" blending={AdditiveBlending} transparent depthWrite={false} />
+      </sprite>
     </group>
   )
 }

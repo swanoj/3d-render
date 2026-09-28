@@ -1,7 +1,8 @@
 import { useFrame } from '@react-three/fiber'
-import { useRef, type RefObject } from 'react'
-import type { Group, MeshBasicMaterial, PerspectiveCamera } from 'three'
+import { useMemo, useRef, type RefObject } from 'react'
+import { AdditiveBlending, type Group, type MeshBasicMaterial, type PerspectiveCamera, type SpriteMaterial } from 'three'
 import { CENTRE_Y, FRONT_Z, SCREEN_X } from './layout'
+import { glowTexture } from './textures'
 
 /** Where the security camera hangs: high over the front of the room, looking down at the set. */
 const MOUNT: [number, number, number] = [1.25, 3.55, 4.3]
@@ -27,12 +28,15 @@ interface CasaCamProps {
 export function CasaCam({ camera, live, reducedMotion }: CasaCamProps) {
   const head = useRef<Group>(null)
   const light = useRef<MeshBasicMaterial>(null)
+  const halo = useRef<SpriteMaterial>(null)
+  const glow = useMemo(() => glowTexture(), [])
 
   useFrame(({ clock }) => {
     const t = clock.elapsedTime
     if (head.current) head.current.rotation.y = AIM[1] + (reducedMotion ? 0 : Math.sin(t * 0.21) * 0.16)
     const on = live && (reducedMotion || t % 1.4 < 0.9)
     light.current?.color.setRGB(on ? 5 : 0.35, on ? 0.35 : 0.04, on ? 0.2 : 0.03)
+    if (halo.current) halo.current.opacity = on ? 0.9 : 0
   })
 
   const plastic = <meshStandardMaterial color="#7d766c" roughness={0.45} metalness={0.05} />
@@ -70,6 +74,9 @@ export function CasaCam({ camera, live, reducedMotion }: CasaCamProps) {
           <sphereGeometry args={[0.011, 10, 10]} />
           <meshBasicMaterial ref={light} color={[0.35, 0.04, 0.03]} toneMapped={false} />
         </mesh>
+        <sprite position={[0.058, -0.045, -0.2]} scale={0.12}>
+          <spriteMaterial ref={halo} map={glow} color="#ff3b2f" opacity={0} transparent depthWrite={false} blending={AdditiveBlending} />
+        </sprite>
         <perspectiveCamera ref={camera} args={[50, 4 / 3, 0.1, 40]} position={[0, -0.1, -0.3]} />
       </group>
     </group>

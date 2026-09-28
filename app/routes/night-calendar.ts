@@ -35,7 +35,7 @@ function fold(line: string) {
 
 /** An .ics file for one night, so "Add to calendar" works in every calendar app. */
 export async function loader({ params, request }: Route.LoaderArgs) {
-  const night = await getNight(params.slug)
+  const night = await getNight(params.slug, Date.now())
   if (!night) throw new Response('Night not found', { status: 404 })
 
   const { venue } = brand

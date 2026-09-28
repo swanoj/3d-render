@@ -1,4 +1,12 @@
+import { mixes } from '../content/radio'
+import type { Mix } from '../content/types'
 import type { ChannelId } from '../three/channels'
+
+/** Casa Radio: the mix selected, and whether it's playing. */
+export interface RadioState {
+  on: boolean
+  mix: Mix
+}
 
 /*
  * Casa TV's sound, made with Web Audio so there are no files to load. The club next door comes through the wall as
@@ -41,6 +49,13 @@ export interface Mixer {
   tv: GainNode
   /** The club's music sent through the set as well as the wall (the vinyl channel). */
   toTv: GainNode
+  /** Casa Radio playing the groove clearly. */
+  radio: GainNode
+  /** Casa Radio's mixes (audio files), and an ear on them for the lamps. */
+  mixIn: GainNode
+  listen: AnalyserNode
+  /** The room's hush, only while you're in the room. */
+  hushLevel: GainNode
   beds: Record<Bed, GainNode>
   noise: AudioBuffer
 }
@@ -143,12 +158,26 @@ export function createMixer(ctx: BaseAudioContext, output: AudioNode): Mixer {
   toTv.gain.value = 0
   music.connect(toTv).connect(tv)
 
+  // Casa Radio: the same groove heard clearly, as if it's playing in the room, with a little of the room's tail.
+  const radio = ctx.createGain()
+  radio.gain.value = 0
+  music.connect(filter(ctx, 'lowpass', 7000, 0.7)).connect(radio).connect(master)
+  radio.connect(tailLevel)
+  // Casa Radio's mixes (audio files) come in here. The analyser lets the lamps swell with them.
+  const mixIn = ctx.createGain()
+  mixIn.gain.value = 0
+  const listen = ctx.createAnalyser()
+  listen.fftSize = 512
+  listen.smoothingTimeConstant = 0.5
+  mixIn.connect(master)
+  mixIn.connect(listen)
+
   // The room's own hush.
   const hush = ctx.createBufferSource()
   hush.buffer = buffer(ctx, 2, 6, brownNoise)
   hush.loop = true
   const hushLevel = ctx.createGain()
-  hushLevel.gain.value = 0.05
+  hushLevel.gain.value = 0
   hush.connect(filter(ctx, 'lowpass', 500, 0.7)).connect(hushLevel).connect(master)
   hush.start()
 
@@ -173,7 +202,21 @@ export function createMixer(ctx: BaseAudioContext, output: AudioNode): Mixer {
   tone.start()
   hum.start()
 
-  return { ctx, master, music, wall, wallLevel, tv, toTv, beds, noise: buffer(ctx, 1, 2, whiteNoise) }
+  return {
+    ctx,
+    master,
+    music,
+    wall,
+    wallLevel,
+    tv,
+    toTv,
+    radio,
+    mixIn,
+    listen,
+    hushLevel,
+    beds,
+    noise: buffer(ctx, 1, 2, whiteNoise),
+  }
 }
 
 function kick(mix: Mixer, time: number) {
@@ -305,6 +348,10 @@ class CasaSound {
   private timer = 0
   private sleep = 0
   private listeners = new Set<() => void>()
+  /** Casa Radio: what's selected, whether it's playing, and the player for mixes that are audio files. */
+  private station: RadioState = { on: false, mix: mixes[0] }
+  private player: HTMLAudioElement | null = null
+  private heard = { slow: 0, beat: 0 }
 
   subscribe = (listener: () => void) => {
     this.listeners.add(listener)
@@ -315,12 +362,53 @@ class CasaSound {
 
   isOn = () => this.enabled
 
-  /** Turns the sound on or off. Call it from a click or key press: browsers only start audio after one. */
+  /** Turns the room's sound on or off. Call it from a click or key press: browsers only start audio after one. */
   toggle = () => {
     if (typeof AudioContext === 'undefined') return
     this.enabled = !this.enabled
     if (this.enabled) this.wake()
     this.refresh()
+    this.notify()
+  }
+
+  /** Casa Radio's state, for useSyncExternalStore: the same object until something changes. */
+  radio = () => this.station
+
+  /** Puts a mix on Casa Radio (the current one if no id), from a click or key press. */
+  playRadio = (id?: string) => {
+    if (typeof AudioContext === 'undefined') return
+    const mix = mixes.find((candidate) => candidate.id === id) ?? this.station.mix
+    this.station = { on: true, mix }
+    this.wake()
+    this.refresh()
+    this.notify()
+  }
+
+  pauseRadio = () => {
+    if (!this.station.on) return
+    this.station = { ...this.station, on: false }
+    this.refresh()
+    this.notify()
+  }
+
+  toggleRadio = () => (this.station.on ? this.pauseRadio() : this.playRadio())
+
+  /** The next mix in the list, looping. */
+  nextMix = () => {
+    const at = mixes.indexOf(this.station.mix)
+    const mix = mixes[(at + 1) % mixes.length]
+    if (mix === this.station.mix) return
+    this.station = { ...this.station, mix }
+    this.refresh()
+    this.notify()
+  }
+
+  /** What's on air, for the TV's vinyl channel; null while the radio is off. */
+  onAir() {
+    return this.station.on ? this.station.mix : null
+  }
+
+  private notify() {
     for (const listener of this.listeners) listener()
   }
 
@@ -336,7 +424,7 @@ class CasaSound {
   tune(channel: ChannelId, changed: boolean) {
     this.channel = channel
     const mix = this.mix
-    if (!mix || !this.audible()) return
+    if (!mix || !this.inRoom()) return
     const now = mix.ctx.currentTime
     if (changed) {
       clunk(mix, now)
@@ -346,22 +434,53 @@ class CasaSound {
   }
 
   lamp() {
-    if (this.mix && this.audible()) lampSwitch(this.mix, this.mix.ctx.currentTime)
+    if (this.mix && this.inRoom()) lampSwitch(this.mix, this.mix.ctx.currentTime)
   }
 
-  /** How hard the last kick is still sounding (0–1), for lamps that swell with the beat. 0 while silent. */
+  /**
+   * How hard the last kick is still sounding (0–1), for lamps that swell with the beat. From the groove's own
+   * clock, or, for a mix, by listening for jumps in its low end. 0 while silent.
+   */
   pulse = () => {
+    // Every lamp asks each frame; work it out once per frame.
+    const at = performance.now()
+    if (at - this.pulsed.at < 8) return this.pulsed.value
+    this.pulsed = { at, value: this.measurePulse() }
+    return this.pulsed.value
+  }
+
+  private pulsed = { at: -Infinity, value: 0 }
+
+  private measurePulse() {
     const context = this.context
     const mix = this.mix
-    if (!context || !mix || !this.timer || context.state !== 'running') return 0
+    if (!context || !mix || context.state !== 'running') return 0
+    const level = Math.min(1, mix.master.gain.value / MASTER)
+    if (this.playingFile()) {
+      const bins = new Uint8Array(mix.listen.frequencyBinCount)
+      mix.listen.getByteFrequencyData(bins)
+      // The first few bins are the kick and the bass (about 0–260 Hz at 48 kHz).
+      const low = (bins[1] + bins[2] + bins[3]) / (3 * 255)
+      const heard = this.heard
+      heard.beat = Math.max(heard.beat * 0.86, Math.min(1, Math.max(0, low - heard.slow) * 5))
+      heard.slow += (low - heard.slow) * 0.05
+      return heard.beat * level
+    }
+    if (!this.timer) return 0
     const heard = context.currentTime - (context.baseLatency || 0) - (context.outputLatency || 0)
     const since = heard - this.origin
     if (since < 0) return 0
-    return Math.exp(-(since % BEAT) * 9) * Math.min(1, mix.master.gain.value / MASTER)
+    return Math.exp(-(since % BEAT) * 9) * level
   }
 
-  private audible() {
+  /** The room's own sound: on, and the room on screen. */
+  private inRoom() {
     return this.enabled && this.present && !document.hidden
+  }
+
+  /** Casa Radio is playing an audio file (which, unlike the groove, carries on in a hidden tab). */
+  private playingFile() {
+    return this.station.on && Boolean(this.station.mix.src)
   }
 
   private wake() {
@@ -377,23 +496,38 @@ class CasaSound {
     this.context.resume().catch(() => {})
   }
 
+  /**
+   * Sets every level from the state. The room (when on and on screen) has the club through the wall, its hush and
+   * the set's noises. Casa Radio replaces the wall: the groove clearly, or a mix from its audio file.
+   */
   private refresh() {
     const context = this.context
     const mix = this.mix
     if (!context || !mix) return
     const now = context.currentTime
-    const audible = this.audible()
+    const room = this.inRoom()
+    const file = this.playingFile()
+    const groove = this.station.on && !file && !document.hidden
+    const audible = room || groove || file
+
     mix.wall.frequency.setTargetAtTime(380 + 320 * this.closeness, now, 0.25)
-    mix.wallLevel.gain.setTargetAtTime(0.42 + 0.3 * this.closeness, now, 0.25)
+    mix.wallLevel.gain.setTargetAtTime(room && !this.station.on ? 0.42 + 0.3 * this.closeness : 0, now, 0.25)
+    mix.radio.gain.setTargetAtTime(groove ? 0.55 : 0, now, 0.2)
+    mix.mixIn.gain.setTargetAtTime(file ? 0.9 : 0, now, 0.2)
+    mix.hushLevel.gain.setTargetAtTime(room ? 0.05 : 0, now, 0.3)
     mix.master.gain.setTargetAtTime(audible ? MASTER : 0, now, audible ? 0.25 : 0.15)
+    this.applyBed(now)
+    this.cue(file)
+
     window.clearTimeout(this.sleep)
     if (audible) {
       // Outside a click or key press the browser may refuse; the sound then starts with the next one.
       context.resume().catch(() => {})
-      this.applyBed(now)
-      this.start()
+      // The groove's clock runs for the wall and for the radio's groove, not under a mix.
+      if ((room && !this.station.on) || groove) this.start()
+      else this.stop()
     } else {
-      // Let the fade finish, then stop the clock so a silent room costs nothing.
+      // Let the fade finish, then stop the clock so silence costs nothing.
       this.sleep = window.setTimeout(() => {
         this.stop()
         context.suspend().catch(() => {})
@@ -401,13 +535,45 @@ class CasaSound {
     }
   }
 
+  /** Starts or stops the audio-file player to match the radio. */
+  private cue(play: boolean) {
+    const context = this.context
+    const mix = this.mix
+    const src = this.station.mix.src
+    if (!context || !mix) return
+    if (!play || !src) {
+      this.player?.pause()
+      return
+    }
+    if (!this.player) {
+      const player = new Audio()
+      // The lamps listen to the mix through Web Audio, which needs the file to allow cross-origin reads.
+      player.crossOrigin = 'anonymous'
+      player.addEventListener('ended', () => {
+        if (mixes.length > 1) return this.nextMix()
+        player.currentTime = 0
+        player.play().catch(() => {})
+      })
+      player.addEventListener('error', () => {
+        console.warn(`Casa Radio could not play ${player.src}.`)
+        this.pauseRadio()
+      })
+      context.createMediaElementSource(player).connect(mix.mixIn)
+      this.player = player
+    }
+    const url = new URL(src, window.location.href).href
+    if (this.player.src !== url) this.player.src = url
+    this.player.play().catch(() => {})
+  }
+
   private applyBed(time: number) {
     const mix = this.mix
     if (!mix) return
+    const room = this.inRoom()
     for (const bed of Object.keys(BED_LEVELS) as Bed[]) {
-      mix.beds[bed].gain.setTargetAtTime(bed === this.channel ? BED_LEVELS[bed] : 0, time, 0.05)
+      mix.beds[bed].gain.setTargetAtTime(room && bed === this.channel ? BED_LEVELS[bed] : 0, time, 0.05)
     }
-    mix.toTv.gain.setTargetAtTime(this.channel === 'vinyl' ? 0.55 : 0, time, 0.08)
+    mix.toTv.gain.setTargetAtTime(room && this.channel === 'vinyl' ? 0.55 : 0, time, 0.08)
   }
 
   private start() {

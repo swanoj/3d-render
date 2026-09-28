@@ -1,17 +1,33 @@
 import { brand, palette } from '../brand/brand'
+import type { Mix } from '../content/types'
+import { casaSound } from '../lib/casaSound'
 import { clockTime, pad2, posterDate } from '../lib/format'
+import { nightPhase, onNow } from '../lib/nightOf'
 
 /*
  * Casa TV's channels, from the concept deck's "large, still-functional old TV on stage". Each channel is drawn
  * into a 4:3 canvas with the brand's fonts and marks; the 3D set's CRT shader (and the 2D fallback) show it.
  * Casa Cam is the exception: in the 3D room the canvas carries only its overlay, over a live picture of the room.
+ * On the night itself, "Next up" becomes "On now", from the set times.
  */
 
 export interface TvData {
-  next: { title: string; startsAt: string; closes: string; lineup: string[] } | null
+  next: {
+    title: string
+    startsAt: string
+    closes: string
+    /** The line-up in billing order; null for a name that's still under wraps. */
+    acts: (string | null)[]
+    /** The running order; a name is null until it's announced. */
+    sets: { start: string; name: string | null }[]
+  } | null
   vinylNext: { startsAt: string } | null
   rules: string[]
   venue: string
+  /** When the page was rendered, so the first render in the browser matches the server's. */
+  now: number
+  /** Added to the clock, so a previewed time (`?now=…`) carries on into the TV. */
+  offset: number
 }
 
 export const CHANNELS = [
@@ -32,21 +48,43 @@ const BOLD = '700 {size}px "Helvetica Neue", Helvetica, Arimo, Arial, sans-serif
 const MONO = '400 {size}px "Roboto Mono", ui-monospace, monospace'
 const font = (template: string, size: number) => template.replace('{size}', String(size))
 
-/** What each channel says, for screen readers and the channel caption. */
-export function channelDescription(id: ChannelId, data: TvData) {
+/** Whether the next night is on right now, and if so who's playing and who's next. */
+function liveSets(data: TvData, now: number) {
+  const night = data.next
+  return night && nightPhase(night.startsAt, now) === 'live' ? onNow(night.sets, now) : null
+}
+
+/** What each channel says, for screen readers and the channel caption. `onAir` is Casa Radio's mix, if playing. */
+export function channelDescription(id: ChannelId, data: TvData, now: number, onAir: Mix | null) {
   switch (id) {
-    case 'next':
-      return data.next
-        ? `${data.next.title}: ${posterDate(data.next.startsAt)}, ${clockTime(data.next.startsAt)} until ${data.next.closes.toLowerCase()}, ${data.venue}.`
-        : 'New nights soon.'
-    case 'lineup':
-      return data.next?.lineup.length ? `Line-up: ${data.next.lineup.join(', ')}.` : 'Line-up soon.'
+    case 'next': {
+      const night = data.next
+      if (!night) return 'New nights soon.'
+      const live = liveSets(data, now)
+      if (live) {
+        const playing = live.current ? `On now: ${live.current.name ?? 'a special guest'}.` : 'Doors are open.'
+        const after = live.next ? ` Next: ${live.next.name ?? 'to be revealed'}, ${clockTime(live.next.start)}.` : ''
+        return `${night.title}, tonight at ${data.venue}. ${playing}${after}`
+      }
+      return `${night.title}: ${posterDate(night.startsAt)}, ${clockTime(night.startsAt)} until ${night.closes.toLowerCase()}, ${data.venue}.`
+    }
+    case 'lineup': {
+      const acts = data.next?.acts ?? []
+      if (!acts.length) return 'Line-up soon.'
+      const names = acts.filter((act): act is string => act !== null)
+      const hidden = acts.length - names.length
+      const secret = `${hidden === 1 ? 'one name' : `${hidden} names`} still to be announced`
+      if (!names.length) return `Line-up: ${secret}.`
+      return `Line-up: ${names.join(', ')}${hidden ? `, and ${secret}` : ''}.`
+    }
     case 'rules':
       return `House rules: ${data.rules.join(' ')}`
-    case 'vinyl':
-      return data.vinylNext
+    case 'vinyl': {
+      const nights = data.vinylNext
         ? `All vinyl, once a month. Next vinyl night: ${posterDate(data.vinylNext.startsAt)}.`
         : 'All vinyl, once a month.'
+      return onAir ? `${nights} On Casa Radio now: ${onAir.title}, ${onAir.artist}.` : nights
+    }
     case 'test':
       return 'Test card. Please stand by.'
     case 'cam':
@@ -142,6 +180,29 @@ function centred(ctx: CanvasRenderingContext2D, text: string, y: number, style: 
   ctx.fillText(text, SCREEN.width / 2, y)
 }
 
+/** Centred text, set smaller if it would be wider than `max`. */
+function fitted(ctx: CanvasRenderingContext2D, text: string, y: number, template: string, size: number, max: number) {
+  ctx.font = font(template, size)
+  const width = ctx.measureText(text).width
+  centred(ctx, text, y, font(template, width > max ? Math.floor((size * max) / width) : size), palette.cream)
+}
+
+/** A name still under wraps: a marker stroke blacked over it, as on the site's line-ups. */
+function redaction(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, tilt: number) {
+  const r = 21
+  ctx.save()
+  ctx.translate(x + width / 2, y)
+  ctx.rotate(tilt)
+  ctx.beginPath()
+  ctx.arc(width / 2 - r, 0, r, -Math.PI / 2, Math.PI / 2)
+  ctx.arc(-width / 2 + r, 0, r, Math.PI / 2, Math.PI * 1.5)
+  ctx.closePath()
+  ctx.fill()
+  ctx.restore()
+}
+
+const REDACTIONS = [380, 280, 440, 240, 340]
+
 function countdown(to: number, now: number) {
   const seconds = Math.max(0, Math.floor((to - now) / 1000))
   const d = Math.floor(seconds / 86400)
@@ -218,6 +279,28 @@ const painters: Record<ChannelId, Painter> = {
       centred(ctx, 'NEW NIGHTS SOON', 420, font(HAND, 96), palette.cream)
       return
     }
+    const live = liveSets(data, now)
+    if (live) {
+      // On the night: who's on now and who's next, under a slow red "on air" light.
+      centred(ctx, 'ON NOW', 296, font(BOLD, 40), palette.cream)
+      const label = ctx.measureText('ON NOW').width
+      ctx.fillStyle = Math.sin(time * 2.4) > -0.4 ? '#ff3b2f' : '#8f2a1c'
+      ctx.beginPath()
+      ctx.arc(width / 2 - label / 2 - 32, 294, 12, 0, Math.PI * 2)
+      ctx.fill()
+      const playing = live.current ? (live.current.name ?? 'Special guest') : 'Doors open'
+      fitted(ctx, playing.toUpperCase(), 390, HAND, 104, 860)
+      const after = live.next
+        ? `NEXT: ${(live.next.name ?? 'To be revealed').toUpperCase()} · ${clockTime(live.next.start)}`
+        : `ON TILL ${data.next.closes.toUpperCase()}`
+      fitted(ctx, after, 484, BOLD, 36, 860)
+      ctx.fillStyle = palette.charcoal
+      ctx.fillRect(width / 2 - 330, 530, 660, 62)
+      // The camera clock's time of day, HH:MM:SS.
+      centred(ctx, `LIVE · ${cctvTime(now).slice(-8)}`, 562, font(MONO, 34), palette.cream)
+      ctx.drawImage(tinted(submark, palette.cream, 96), width / 2 - 48, 624)
+      return
+    }
     centred(ctx, data.next.title.toUpperCase(), 296, font(BOLD, 40), palette.cream)
     centred(ctx, posterDate(data.next.startsAt).toUpperCase(), 390, font(HAND, 104), palette.cream)
     centred(
@@ -237,29 +320,36 @@ const painters: Record<ChannelId, Painter> = {
     const { width, height } = SCREEN
     ctx.fillStyle = palette.charcoal
     ctx.fillRect(0, 0, width, height)
-    const names = data.next?.lineup.length ? data.next.lineup : ['Line-up soon']
+    const acts = data.next?.acts.length ? data.next.acts : ['Line-up soon']
+    const hidden = acts.filter((act) => act === null).length
     const gap = 82
-    const loop = Math.max(names.length * gap, height - 200)
+    const loop = Math.max(acts.length * gap, height - 200)
     const offset = (time * 38) % loop
     ctx.font = font(BOLD, 56)
     ctx.textAlign = 'left'
     ctx.textBaseline = 'middle'
-    // Rolling credits, repeated so the roll never runs dry.
+    ctx.fillStyle = palette.cream
+    // Rolling credits, repeated so the roll never runs dry. Names still under wraps roll by blacked out.
     for (let pass = 0; pass < 3; pass++) {
-      names.forEach((name, i) => {
+      let secret = 0
+      acts.forEach((act, i) => {
         const y = 250 + i * gap + pass * loop - offset
+        const x = 190 + INDENTS[i % INDENTS.length] * 26
+        if (act === null) secret += 1
         if (y < 170 || y > height - 20) return
-        const fade = Math.min(1, (y - 170) / 70, (height - 20 - y) / 70)
-        ctx.globalAlpha = Math.max(0, fade)
-        ctx.fillStyle = palette.cream
-        ctx.fillText(name.toUpperCase(), 190 + INDENTS[i % INDENTS.length] * 26, y)
+        ctx.globalAlpha = Math.max(0, Math.min(1, (y - 170) / 70, (height - 20 - y) / 70))
+        if (act === null) redaction(ctx, x, y, REDACTIONS[(secret - 1) % REDACTIONS.length], secret % 2 ? -0.02 : 0.015)
+        else ctx.fillText(act.toUpperCase(), x, y)
       })
     }
     ctx.globalAlpha = 1
     ctx.fillStyle = palette.charcoal
     ctx.fillRect(0, 0, width, 170)
     centred(ctx, 'LINE-UP', 92, font(HAND, 84), palette.orange)
-    if (data.next) centred(ctx, posterDate(data.next.startsAt).toUpperCase(), 150, font(BOLD, 26), palette.cream)
+    if (data.next) {
+      const more = hidden ? ` · ${hidden === 1 ? 'ONE MORE NAME' : `${hidden} MORE NAMES`} SOON` : ''
+      centred(ctx, `${posterDate(data.next.startsAt).toUpperCase()}${more}`, 150, font(BOLD, 26), palette.cream)
+    }
   },
 
   rules(ctx, data, _time, _now, { check }) {
@@ -340,6 +430,30 @@ const painters: Record<ChannelId, Painter> = {
     if (data.vinylNext) {
       ctx.font = font(MONO, 30)
       ctx.fillText(`NEXT: ${posterDate(data.vinylNext.startsAt).toUpperCase()}`, 614, 548)
+    }
+
+    // While Casa Radio plays, a lit "on air" sign and what's on.
+    const onAir = casaSound.onAir()
+    if (!onAir) return
+    ctx.save()
+    ctx.shadowColor = 'rgba(255, 70, 40, 0.9)'
+    ctx.shadowBlur = 28
+    ctx.fillStyle = '#e0301e'
+    ctx.fillRect(614, 146, 204, 66)
+    ctx.restore()
+    ctx.font = font(BOLD, 38)
+    ctx.textBaseline = 'middle'
+    ctx.fillText('ON AIR', 640, 181)
+    ctx.textBaseline = 'alphabetic'
+    ctx.font = font(MONO, 26)
+    for (const [i, line] of [onAir.title, onAir.artist].entries()) {
+      const text = line.toUpperCase()
+      const fit = Math.min(1, 370 / Math.max(1, ctx.measureText(text).width))
+      ctx.save()
+      ctx.translate(614, 612 + i * 38)
+      ctx.scale(fit, 1)
+      ctx.fillText(text, 0, 0)
+      ctx.restore()
     }
   },
 

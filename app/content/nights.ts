@@ -8,6 +8,8 @@ import type { Night } from './types'
  *   until the real date is confirmed.
  * - The later nights, including the monthly vinyl night from the concept deck, only show how the site handles
  *   them. No ticket links yet.
+ * - The reveal phases and set times on opening night show how the phased line-up and night-of mode work. Set the
+ *   real drop dates and times (Melbourne time: +10:00 until 4 October, +11:00 after).
  */
 export const nights: Night[] = [
   {
@@ -17,7 +19,18 @@ export const nights: Night[] = [
     closes: 'Late',
     mood: 'orange',
     motif: 'tv',
-    lineup: ['Headliner TBA', 'Special guest', 'Casa residents', 'More to be announced'],
+    lineup: [
+      { name: 'Headliner TBA', phase: 2 },
+      { name: 'Special guest', phase: 2 },
+      { name: 'Casa residents', artist: 'casa-residents' },
+    ],
+    phases: [{ phase: 2, at: '2026-10-02T18:00:00+10:00' }],
+    setTimes: [
+      { act: 'Casa residents', start: '2026-10-16T22:00:00+11:00' },
+      { act: 'Special guest', start: '2026-10-17T00:00:00+11:00' },
+      { act: 'Headliner TBA', start: '2026-10-17T01:30:00+11:00' },
+      { act: 'Casa residents', start: '2026-10-17T03:30:00+11:00' },
+    ],
     status: 'announced',
   },
   {

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, NavLink, useLocation } from 'react-router'
 import { brand } from '../brand/brand'
 import { Mark } from './Mark'
+import { RadioControl } from './Radio'
 import { Sheet } from './Sheet'
 
 export function SiteHeader() {
@@ -39,6 +40,8 @@ export function SiteHeader() {
             Get on the list
           </a>
         </nav>
+        {/* In the header, so it keeps playing as you move between pages. */}
+        <RadioControl />
         <button
           type="button"
           className="pill menu-button"
