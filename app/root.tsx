@@ -4,6 +4,7 @@ import { isRouteErrorResponse, Links, Meta, Outlet, Scripts, ScrollRestoration }
 import type { Route } from './+types/root'
 import './app.css'
 import { brand, moods, pageTitle } from './brand/brand'
+import { RadioDock } from './components/RadioDock'
 import { SiteFooter } from './components/SiteFooter'
 import { SiteHeader } from './components/SiteHeader'
 import { Backdrop } from './components/Stages'
@@ -53,6 +54,8 @@ export default function App() {
         <Outlet />
       </main>
       <SiteFooter />
+      {/* Outside the pages, so the turntable keeps turning from one to the next. */}
+      <RadioDock />
     </MoodProvider>
   )
 }
