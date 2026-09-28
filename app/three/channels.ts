@@ -56,45 +56,74 @@ export interface TvAssets {
   check: HTMLImageElement
 }
 
+// The marks' drawn proportions. Browsers disagree on the natural size of an SVG (Firefox has reported 0×0 and
+// Safari a default 300×150 box when a file has no width and height), so drawing never relies on it.
+const MARK_SIZES: Record<string, [number, number]> = {
+  logo: [1600, 240],
+  submark: [676, 572],
+  check: [560, 440],
+}
+
+/** Resolves once the image has loaded or failed; a failed image is drawn as nothing rather than stopping the TV. */
 function loadImage(src: string) {
   const image = new Image()
   image.crossOrigin = 'anonymous'
+  const loaded = new Promise<HTMLImageElement>((resolve) => {
+    image.onload = () => resolve(image)
+    image.onerror = () => {
+      console.warn(`Casa TV could not load ${src}.`)
+      resolve(image)
+    }
+  })
   image.src = src
-  return image.decode().then(() => image)
+  return loaded
+}
+
+/** Waits for a font, but never for more than a few seconds or past an error: the TV falls back to system type. */
+function loadFont(style: string) {
+  return Promise.race([
+    document.fonts.load(style).catch(() => []),
+    new Promise((resolve) => window.setTimeout(resolve, 3000)),
+  ])
 }
 
 let assets: Promise<TvAssets> | undefined
 
-/** The brand marks and fonts the channels draw with, loaded once. */
+/** The brand marks and fonts the channels draw with, loaded once. Always resolves. */
 export function loadTvAssets() {
   assets ??= Promise.all([
     loadImage('/brand/logo.svg'),
     loadImage('/brand/submark.svg'),
     loadImage('/brand/check.svg'),
-    document.fonts.load(font(HAND, 40)),
-    document.fonts.load(font(BOLD, 40)),
-    document.fonts.load(font(MONO, 20)),
+    loadFont(font(HAND, 40)),
+    loadFont(font(BOLD, 40)),
+    loadFont(font(MONO, 20)),
   ]).then(([logo, submark, check]) => ({ logo, submark, check }))
   return assets
 }
 
 const tints = new Map<string, HTMLCanvasElement>()
 
-/** A brand mark recoloured (the SVGs are drawn in charcoal), cached per colour and size. */
+/**
+ * A brand mark recoloured (the SVGs are drawn in charcoal), cached per colour and size. A mark that failed to load
+ * comes back as an empty 1×1 canvas, which is safe to draw.
+ */
 export function tinted(image: HTMLImageElement, color: string, width: number) {
-  const height = Math.round((width * image.naturalHeight) / image.naturalWidth)
-  const key = `${image.src}|${color}|${width}`
+  const name = image.src.match(/\/([\w-]+)\.svg/)?.[1] ?? ''
+  const [markWidth, markHeight] = MARK_SIZES[name] ?? [image.naturalWidth, image.naturalHeight]
+  const usable = image.complete && image.naturalWidth > 0 && markWidth > 0 && markHeight > 0
+  const key = `${image.src}|${color}|${width}|${usable}`
   let canvas = tints.get(key)
   if (!canvas) {
     canvas = document.createElement('canvas')
-    canvas.width = width
-    canvas.height = height
+    canvas.width = usable ? width : 1
+    canvas.height = usable ? Math.max(1, Math.round((width * markHeight) / markWidth)) : 1
     const ctx = canvas.getContext('2d')
-    if (ctx) {
-      ctx.drawImage(image, 0, 0, width, height)
+    if (ctx && usable) {
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height)
       ctx.globalCompositeOperation = 'source-in'
       ctx.fillStyle = color
-      ctx.fillRect(0, 0, width, height)
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
     }
     tints.set(key, canvas)
   }
