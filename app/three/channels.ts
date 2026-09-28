@@ -1,9 +1,10 @@
-import { palette } from '../brand/brand'
+import { brand, palette } from '../brand/brand'
 import { clockTime, pad2, posterDate } from '../lib/format'
 
 /*
  * Casa TV's channels, from the concept deck's "large, still-functional old TV on stage". Each channel is drawn
  * into a 4:3 canvas with the brand's fonts and marks; the 3D set's CRT shader (and the 2D fallback) show it.
+ * Casa Cam is the exception: in the 3D room the canvas carries only its overlay, over a live picture of the room.
  */
 
 export interface TvData {
@@ -19,6 +20,7 @@ export const CHANNELS = [
   { id: 'rules', name: 'House rules', light: palette.cream },
   { id: 'vinyl', name: 'Vinyl nights', light: palette.pink },
   { id: 'test', name: 'Test card', light: '#f0d9c0' },
+  { id: 'cam', name: 'Casa Cam', light: '#a9c7ba' },
 ] as const
 
 export type ChannelId = (typeof CHANNELS)[number]['id']
@@ -47,6 +49,8 @@ export function channelDescription(id: ChannelId, data: TvData) {
         : 'All vinyl, once a month.'
     case 'test':
       return 'Test card. Please stand by.'
+    case 'cam':
+      return 'Casa Cam: this room, live from the camera in the ceiling.'
   }
 }
 
@@ -164,9 +168,36 @@ function wrap(ctx: CanvasRenderingContext2D, text: string, width: number) {
   return lines
 }
 
-type Painter = (ctx: CanvasRenderingContext2D, data: TvData, time: number, now: number, assets: TvAssets) => void
+type Painter = (
+  ctx: CanvasRenderingContext2D,
+  data: TvData,
+  time: number,
+  now: number,
+  assets: TvAssets,
+  /** True when the 3D set has a live camera picture to show under the canvas. */
+  live: boolean,
+) => void
 
 const INDENTS = [0, 2.6, 0.5, 3.5, 1.3, 0, 2.1, 0, 2.8, 5.4, 0.7]
+
+const cctvClock = new Intl.DateTimeFormat(brand.locale, {
+  timeZone: brand.timeZone,
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hourCycle: 'h23',
+})
+let stamp = { second: -1, text: '' }
+
+/** "28/09/2026  21:04:07" in St Kilda, formatted once a second. */
+function cctvTime(now: number) {
+  const second = Math.floor(now / 1000)
+  if (second !== stamp.second) stamp = { second, text: cctvClock.format(now).replace(', ', '  ') }
+  return stamp.text
+}
 
 const painters: Record<ChannelId, Painter> = {
   next(ctx, data, time, now, { logo, submark }) {
@@ -346,9 +377,56 @@ const painters: Record<ChannelId, Painter> = {
     centred(ctx, 'PLEASE STAND BY', height * 0.91, font(MONO, 30), palette.cream)
     ctx.globalAlpha = 1
   },
+
+  cam(ctx, _data, time, now, _assets, live) {
+    const { width, height } = SCREEN
+    if (live) {
+      // The 3D set shows the camera's picture through the clear canvas.
+      ctx.clearRect(0, 0, width, height)
+    } else {
+      ctx.fillStyle = '#161c19'
+      ctx.fillRect(0, 0, width, height)
+      let seed = Math.floor(time * 24) * 7919 + 1
+      const random = () => {
+        seed = (seed * 16807) % 2147483647
+        return seed / 2147483647
+      }
+      for (let i = 0; i < 1400; i++) {
+        ctx.fillStyle = `rgba(200, 225, 212, ${0.03 + random() * 0.12})`
+        ctx.fillRect(random() * width, random() * height, 2 + random() * 4, 2)
+      }
+      centred(ctx, 'NO SIGNAL', height / 2, font(MONO, 44), '#d6e8de')
+    }
+
+    // A security camera's captions, with a shadow so they read over any picture.
+    ctx.save()
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.6)'
+    ctx.shadowOffsetX = 2
+    ctx.shadowOffsetY = 2
+    ctx.font = font(MONO, 30)
+    ctx.fillStyle = '#eef6f1'
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'top'
+    ctx.fillText('REC  CAM 01', 104, 52)
+    ctx.textBaseline = 'bottom'
+    ctx.fillText(cctvTime(now), 62, height - 52)
+    ctx.textAlign = 'right'
+    ctx.fillText('ST KILDA', width - 62, height - 52)
+    // The recording light blinks slowly.
+    if (Math.floor(time * 1.2) % 2 === 0) {
+      ctx.fillStyle = '#ff3b2f'
+      ctx.beginPath()
+      ctx.arc(80, 69, 11, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    ctx.restore()
+  },
 }
 
-/** Draws a channel, with the on-screen channel number while `osd` (0–1) is showing. */
+/**
+ * Draws a channel, with the on-screen channel number while `osd` (0–1) is showing. `live` is for the 3D set, which
+ * has a camera picture to put under Casa Cam's captions; anywhere else that channel shows "no signal".
+ */
 export function drawChannel(
   ctx: CanvasRenderingContext2D,
   index: number,
@@ -357,10 +435,11 @@ export function drawChannel(
   now: number,
   loaded: TvAssets,
   osd: number,
+  live = false,
 ) {
   const channel = CHANNELS[index]
   ctx.save()
-  painters[channel.id](ctx, data, time, now, loaded)
+  painters[channel.id](ctx, data, time, now, loaded, live)
   ctx.restore()
   if (osd > 0) {
     ctx.save()

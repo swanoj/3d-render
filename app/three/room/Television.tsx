@@ -1,30 +1,42 @@
 import { RoundedBox, useCursor } from '@react-three/drei'
 import { useFrame, useThree } from '@react-three/fiber'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import {
   AdditiveBlending,
   CanvasTexture,
   Color,
   CylinderGeometry,
   ExtrudeGeometry,
+  HalfFloatType,
+  LinearFilter,
   LinearMipmapLinearFilter,
   MathUtils,
   Path,
   PlaneGeometry,
   Shape,
   SRGBColorSpace,
+  WebGLRenderTarget,
   type Mesh,
+  type PerspectiveCamera,
   type PointLight,
   type ShaderMaterial,
 } from 'three'
 import { CHANNELS, drawChannel, SCREEN, type ChannelId, type TvAssets, type TvData } from '../channels'
 import { screenFragment, screenVertex } from '../tv-screen.glsl'
 import { TableLamp } from './Furniture'
-import { CENTRE_Y, CONTROLS_X, FRONT_Z, SCREEN_SIZE, SCREEN_X, TOP_Y, TV } from './layout'
+import { CENTRE_Y, CONTROLS_X, FRONT_Z, SCREEN_SIZE, SCREEN_X, TABLE_LAMP, TOP_Y, TV } from './layout'
 import { badgeTexture, dialTexture, fabricTexture, knurlTexture, walnutTexture } from './textures'
 
 // How much each channel's picture lights the room (the credits are dark; the rules are cream paper).
-const SCREEN_GLOW: Record<ChannelId, number> = { next: 1, lineup: 0.45, rules: 1.15, vinyl: 0.8, test: 1 }
+const SCREEN_GLOW: Record<ChannelId, number> = { next: 1, lineup: 0.45, rules: 1.15, vinyl: 0.8, test: 1, cam: 0.6 }
+
+const CAM = CHANNELS.findIndex((channel) => channel.id === 'cam')
+
+// Casa Cam's picture: small and a little choppy, like a real security camera's.
+const FEED = { width: 320, height: 240, interval: 1000 / 15 }
+
+// Where the volume knob points: low at seven o'clock, and turned up to two o'clock while the sound is on.
+const VOLUME = { off: -0.52, on: -4.19 }
 
 const LEGS = [
   [-1.02, -0.2],
@@ -87,8 +99,17 @@ function housing() {
   return geometry
 }
 
-/** Draws the current channel into a canvas each frame and runs it through the CRT shader. */
-function useScreen(channel: number, data: TvData, assets: TvAssets | null, reducedMotion: boolean) {
+/**
+ * Draws the current channel into a canvas each frame and runs it through the CRT shader. On Casa Cam it also films
+ * the room from the security camera `cctv`.
+ */
+function useScreen(
+  channel: number,
+  data: TvData,
+  assets: TvAssets | null,
+  reducedMotion: boolean,
+  cctv: RefObject<PerspectiveCamera | null>,
+) {
   const invalidate = useThree((state) => state.invalidate)
   const material = useRef<ShaderMaterial>(null)
   const shown = useRef<number>(channel)
@@ -103,16 +124,39 @@ function useScreen(channel: number, data: TvData, assets: TvAssets | null, reduc
     texture.anisotropy = 4
     return { canvas, texture }
   })
+  // Two pictures: the camera films into one while the screen shows the other.
+  const [feeds] = useState(() =>
+    [0, 1].map(
+      () =>
+        new WebGLRenderTarget(FEED.width, FEED.height, {
+          type: HalfFloatType,
+          minFilter: LinearFilter,
+          magFilter: LinearFilter,
+        }),
+    ),
+  )
   const [uniforms] = useState(() => ({
     uContent: { value: surface.texture },
     uTime: { value: 0 },
     uStatic: { value: 0 },
     uPower: { value: 0 },
     uBoost: { value: 1.35 },
+    uCam: { value: feeds[0].texture },
+    uCamMix: { value: 0 },
   }))
-  const view = useRef({ pending: channel, switchedAt: -Infinity, osdUntil: 0, lastDraw: 0, clock: 0, failed: false })
+  const view = useRef({
+    pending: channel,
+    switchedAt: -Infinity,
+    osdUntil: 0,
+    lastDraw: 0,
+    clock: 0,
+    failed: false,
+    feed: 0,
+    filmedAt: -Infinity,
+  })
 
   useEffect(() => () => surface.texture.dispose(), [surface])
+  useEffect(() => () => feeds.forEach((feed) => feed.dispose()), [feeds])
 
   // A new channel: a burst of static, then the picture changes and the channel number shows in the corner.
   useEffect(() => {
@@ -131,7 +175,7 @@ function useScreen(channel: number, data: TvData, assets: TvAssets | null, reduc
     return () => window.clearInterval(id)
   }, [reducedMotion, invalidate])
 
-  useFrame((_, rawDelta) => {
+  useFrame(({ gl, scene }, rawDelta) => {
     const u = material.current?.uniforms
     if (!u) return
     const delta = Math.min(rawDelta, 0.1)
@@ -147,6 +191,29 @@ function useScreen(channel: number, data: TvData, assets: TvAssets | null, reduc
       shown.current = state.pending
       state.lastDraw = 0
     }
+    u.uCamMix.value = shown.current === CAM ? 1 : 0
+
+    // Casa Cam films the room into one picture while the screen shows the other, then they swap. The set is in its
+    // own shot, so the screen shows a tunnel of itself, a frame deeper each time round. It starts filming during
+    // the static so the first picture is ready.
+    const camera = cctv.current
+    const filming = shown.current === CAM || state.pending === CAM
+    if (filming && camera && now - state.filmedAt >= (reducedMotion ? 0 : FEED.interval)) {
+      const into = feeds[1 - state.feed]
+      u.uCam.value = feeds[state.feed].texture
+      const target = gl.getRenderTarget()
+      const shadows = gl.shadowMap.autoUpdate
+      // The lamps' shadows from the last frame will do; they barely move.
+      gl.shadowMap.autoUpdate = false
+      gl.setRenderTarget(into)
+      gl.clear()
+      gl.render(scene, camera)
+      gl.setRenderTarget(target)
+      gl.shadowMap.autoUpdate = shadows
+      u.uCam.value = into.texture
+      state.feed = 1 - state.feed
+      state.filmedAt = now
+    }
 
     // Redraw at about 30 frames a second; the rolling credits and spinning record need it.
     if (assets && now - state.lastDraw > 33) {
@@ -155,7 +222,7 @@ function useScreen(channel: number, data: TvData, assets: TvAssets | null, reduc
         const osd = MathUtils.clamp((state.osdUntil - now) / 400, 0, 1)
         // A drawing error must never stop the render loop: the room keeps running with the last good picture.
         try {
-          drawChannel(ctx, shown.current, data, state.clock, Date.now(), assets, osd)
+          drawChannel(ctx, shown.current, data, state.clock, Date.now(), assets, osd, true)
           ;(u.uContent.value as CanvasTexture).needsUpdate = true
         } catch (error) {
           if (!state.failed) console.warn('Casa TV could not draw a channel.', error)
@@ -175,13 +242,32 @@ interface TelevisionProps {
   assets: TvAssets | null
   reducedMotion: boolean
   onNext: () => void
+  /** Whether the room's sound is on; the volume knob turns up with it, and clicking the knob toggles it. */
+  sound: boolean
+  onSound: () => void
+  /** The little lamp on top of the set, and its switch. */
+  lamp: boolean
+  onLamp: () => void
+  /** The security camera Casa Cam films from. */
+  cctv: RefObject<PerspectiveCamera | null>
 }
 
 /** A walnut console set: tube housing, chrome-trimmed screen, channel dial, cloth speaker and brass legs. */
-export function Television({ channel, data, assets, reducedMotion, onNext }: TelevisionProps) {
+export function Television({
+  channel,
+  data,
+  assets,
+  reducedMotion,
+  onNext,
+  sound,
+  onSound,
+  lamp,
+  onLamp,
+  cctv,
+}: TelevisionProps) {
   const [hovered, setHovered] = useState(false)
   useCursor(hovered)
-  const { material, uniforms, shown } = useScreen(channel, data, assets, reducedMotion)
+  const { material, uniforms, shown } = useScreen(channel, data, assets, reducedMotion, cctv)
   const shapes = useMemo(
     () => ({
       glass: tubeGlass(SCREEN_SIZE.width, SCREEN_SIZE.height, 0.07),
@@ -195,6 +281,7 @@ export function Television({ channel, data, assets, reducedMotion, onNext }: Tel
   // Lettered textures wait for the brand fonts, which load with the channel artwork.
   const lettering = useMemo(() => (assets ? { dial: dialTexture(CHANNELS.length), badge: badgeTexture() } : null), [assets])
   const knob = useRef<Mesh>(null)
+  const volume = useRef<Mesh>(null)
   const screenLight = useRef<PointLight>(null)
   const lightColour = useRef(new Color(CHANNELS[channel].light))
 
@@ -204,6 +291,10 @@ export function Television({ channel, data, assets, reducedMotion, onNext }: Tel
     if (knob.current) {
       const target = Math.PI - channel * ((Math.PI * 2) / CHANNELS.length)
       knob.current.rotation.y = reducedMotion ? target : MathUtils.damp(knob.current.rotation.y, target, 7, delta)
+    }
+    if (volume.current) {
+      const target = sound ? VOLUME.on : VOLUME.off
+      volume.current.rotation.y = reducedMotion ? target : MathUtils.damp(volume.current.rotation.y, target, 5, delta)
     }
     // The picture lights the room in its own colour and brightness.
     const light = screenLight.current
@@ -336,8 +427,16 @@ export function Television({ channel, data, assets, reducedMotion, onNext }: Tel
           </mesh>
         </mesh>
       </group>
-      <group position={[CONTROLS_X, CENTRE_Y + 0.1, FRONT_Z + 0.06]} rotation-x={Math.PI / 2}>
-        <mesh castShadow>
+      {/* The volume knob works: it turns the room's sound on and off. */}
+      <group
+        position={[CONTROLS_X, CENTRE_Y + 0.1, FRONT_Z + 0.06]}
+        rotation-x={Math.PI / 2}
+        onClick={(event) => {
+          event.stopPropagation()
+          onSound()
+        }}
+      >
+        <mesh ref={volume} rotation-y={VOLUME.off} castShadow>
           <cylinderGeometry args={[0.09, 0.1, 0.07, 40]} />
           <meshStandardMaterial
             attach="material-0"
@@ -349,6 +448,10 @@ export function Television({ channel, data, assets, reducedMotion, onNext }: Tel
           />
           <meshStandardMaterial attach="material-1" color="#ddd3c2" metalness={1} roughness={0.2} />
           <meshStandardMaterial attach="material-2" color="#2c211a" roughness={0.4} />
+          <mesh position={[0, 0.036, 0.058]}>
+            <boxGeometry args={[0.016, 0.005, 0.05]} />
+            <meshStandardMaterial color="#ede1d3" roughness={0.4} />
+          </mesh>
         </mesh>
       </group>
 
@@ -380,7 +483,7 @@ export function Television({ channel, data, assets, reducedMotion, onNext }: Tel
         <meshBasicMaterial color={[5, 0.6, 0.25]} toneMapped={false} />
       </mesh>
 
-      <TableLamp position={[-0.8, TOP_Y, 0.15]} reducedMotion={reducedMotion} />
+      <TableLamp position={TABLE_LAMP} reducedMotion={reducedMotion} on={lamp} onToggle={onLamp} />
 
       {/* Rabbit ears: telescopic chrome rods. */}
       <group position={[0.45, TOP_Y, -0.15]}>

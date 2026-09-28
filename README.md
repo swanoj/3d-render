@@ -8,7 +8,7 @@ Server-rendered with React Router 7 (the framework Remix became, which Shopify H
 
 Built from the Alicyte Design asset set and the Prince Bandroom concept deck:
 
-- **Casa TV** (home page): a 3D corner of the room with a walnut console TV, a floor lamp and a table lamp whose light slowly breathes, a plant, hanging records, a crate of records and dust in the lamplight. The section pins while you scroll and the camera walks in from the doorway until the set fills the screen. Tap the set, or use CH − / CH +, to change channel: next night, line-up, house rules, vinyl nights, test card. Reflections, bloom, ambient occlusion and depth of field run on capable devices and step down automatically when frames drop (`?quality=low` or `?quality=high` pins it). It loads only when scrolled near, pauses off screen, and falls back to a flat 2D set without WebGL.
+- **Casa TV** (home page): a 3D corner of the room with a walnut console TV, a floor lamp and a table lamp whose light slowly breathes, a plant, hanging records, a crate of records, a security camera on the ceiling, and dust and haze in the lamplight. The section pins while you scroll, the site header steps aside, and the camera walks in from the doorway until the set fills the screen. Tap the set, use CH − / CH +, or press ← / → or 1–6 to change channel: next night, line-up, house rules, vinyl nights, test card, and Casa Cam, a live picture of the room from the ceiling camera (the set is in its own shot, so it shows a tunnel of itself). Click a lamp, or press L, to switch the lamps. The Sound button, the set's volume knob or M turns on the room's sound: the club through the wall, static between channels, crackle on the vinyl channel. It's synthesised with Web Audio in `app/lib/casaSound.ts`, and the lamps swell gently with each kick. Reflections, bloom, ambient occlusion and depth of field run on capable devices and step down automatically when frames drop (`?quality=low` or `?quality=high` pins it). It loads only when scrolled near, pauses off screen, and falls back to a flat 2D set without WebGL.
 - **Wordmark wall** behind every page, in each night's colourway, with warm lamp glows that fade in and out (no flashing).
 - **Hand-drawn layer:** notes and arrows ("save the date", "pop it in the diary") that draw themselves on scroll, a doodle stamp for each night, a circled "All vinyl" badge, and a handwritten house-rules card on `/info`.
 - **Film strip** of photos from past nights, faded and grainy. Until there are photos, the frames show as still developing.
@@ -35,6 +35,7 @@ npm start        # serve the build on http://localhost:3000
 | House rules, "The room" copy, photos for the film strip | `app/content/house.ts` |
 | Brand: palette, colourways, venue, house copy, nav | `app/brand/brand.ts` |
 | Casa TV channels | `app/three/channels.ts` |
+| Casa TV sound: tempo, chords, levels | `app/lib/casaSound.ts` |
 | Logos and marker strokes | `public/brand/*.svg` |
 | Styles | `app/app.css` |
 

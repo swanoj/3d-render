@@ -1,4 +1,5 @@
-import { useFrame, type ThreeElements } from '@react-three/fiber'
+import { useCursor } from '@react-three/drei'
+import { useFrame, type ThreeElements, type ThreeEvent } from '@react-three/fiber'
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   AdditiveBlending,
@@ -9,6 +10,7 @@ import {
   ShapeGeometry,
   type Group,
   type InstancedMesh,
+  type MeshBasicMaterial,
   type MeshStandardMaterial,
   type PointLight,
   type ShaderMaterial,
@@ -17,7 +19,7 @@ import {
 } from 'three'
 import { palette } from '../../brand/brand'
 import type { TvAssets } from '../channels'
-import { breath } from './layout'
+import { useLampLevel } from './lampLevel'
 import {
   glowTexture,
   groovesTexture,
@@ -31,6 +33,34 @@ import {
 type WithMotion = ThreeElements['group'] & { reducedMotion: boolean }
 
 /* ---------- Lamps ---------- */
+
+interface Switchable {
+  on: boolean
+  onToggle: () => void
+}
+
+/** Click to switch; the pointer shows it's clickable. Stops the click reaching the set underneath. */
+function useSwitch(onToggle: () => void) {
+  const [hovered, setHovered] = useState(false)
+  useCursor(hovered)
+  return {
+    onClick: (event: ThreeEvent<MouseEvent>) => {
+      event.stopPropagation()
+      onToggle()
+    },
+    onPointerOver: (event: ThreeEvent<PointerEvent>) => {
+      event.stopPropagation()
+      setHovered(true)
+    },
+    onPointerOut: () => setHovered(false),
+  }
+}
+
+// The bulb's glow when on, and the dull glass when off.
+const BULB = { on: new Color(6, 4.2, 2.6), off: new Color(0.16, 0.13, 0.1) }
+
+/** Hands clicks and hovers to the lamp around it, never to its light or glow. */
+const noRaycast = () => null
 
 const coneVertex = /* glsl */ `
 varying float vHeight;
@@ -57,29 +87,36 @@ void main() {
 }
 `
 
-/** A standard lamp with a linen drum shade. Its light, glow and the beam under it all breathe together. */
-export function FloorLamp({ reducedMotion, aim, ...props }: WithMotion & { aim: number }) {
+/**
+ * A standard lamp with a linen drum shade. Its light, glow and the beam under it all breathe together. Click it to
+ * switch it off and on.
+ */
+export function FloorLamp({ reducedMotion, aim, on, onToggle, ...props }: WithMotion & Switchable & { aim: number }) {
   const spot = useRef<SpotLight>(null)
   const fill = useRef<PointLight>(null)
   const shade = useRef<MeshStandardMaterial>(null)
+  const bulb = useRef<MeshBasicMaterial>(null)
   const glow = useRef<SpriteMaterial>(null)
   const beam = useRef<ShaderMaterial>(null)
   const [target] = useState(() => new Object3D())
   const halo = useMemo(() => glowTexture(), [])
   const linen = useMemo(() => shadeTexture(), [])
   const [beamUniforms] = useState(() => ({ uColor: { value: new Color('#ffa25a') }, uStrength: { value: 0.1 } }))
+  const lit = useLampLevel(on, reducedMotion)
+  const handlers = useSwitch(onToggle)
 
-  useFrame(({ clock }) => {
-    const level = breath(reducedMotion ? 2 : clock.elapsedTime)
-    if (spot.current) spot.current.intensity = 34 * level
-    if (fill.current) fill.current.intensity = 5 * level
-    if (shade.current) shade.current.emissiveIntensity = 0.6 + 1.2 * level
-    if (glow.current) glow.current.opacity = 0.18 + 0.28 * level
-    if (beam.current) beam.current.uniforms.uStrength.value = 0.05 + 0.08 * level
+  useFrame(({ clock }, delta) => {
+    const { power, level } = lit(clock.elapsedTime, delta)
+    if (spot.current) spot.current.intensity = 34 * level * power
+    if (fill.current) fill.current.intensity = 5 * level * power
+    if (shade.current) shade.current.emissiveIntensity = (0.6 + 1.2 * level) * power
+    bulb.current?.color.lerpColors(BULB.off, BULB.on, power)
+    if (glow.current) glow.current.opacity = (0.18 + 0.28 * level) * power
+    if (beam.current) beam.current.uniforms.uStrength.value = (0.05 + 0.08 * level) * power
   })
 
   return (
-    <group {...props}>
+    <group {...props} {...handlers}>
       <mesh position={[0, 0.03, 0]} castShadow receiveShadow>
         <cylinderGeometry args={[0.24, 0.3, 0.06, 40]} />
         <meshStandardMaterial color="#c49a5c" metalness={1} roughness={0.32} />
@@ -102,9 +139,9 @@ export function FloorLamp({ reducedMotion, aim, ...props }: WithMotion & { aim: 
       </mesh>
       <mesh position={[0, 2.04, 0]}>
         <sphereGeometry args={[0.06, 16, 16]} />
-        <meshBasicMaterial color={[6, 4.2, 2.6]} toneMapped={false} />
+        <meshBasicMaterial ref={bulb} color={BULB.on} toneMapped={false} />
       </mesh>
-      <mesh position={[0, 0.97, 0]}>
+      <mesh position={[0, 0.97, 0]} raycast={noRaycast}>
         <cylinderGeometry args={[0.4, 1.35, 1.88, 40, 1, true]} />
         <shaderMaterial
           ref={beam}
@@ -134,26 +171,28 @@ export function FloorLamp({ reducedMotion, aim, ...props }: WithMotion & { aim: 
         shadow-radius={6}
       />
       <pointLight ref={fill} position={[0, 2.3, 0.1]} color="#ff9447" intensity={5} distance={8} decay={1.8} />
-      <sprite position={[0, 2.12, 0.05]} scale={[2.4, 2.4, 1]}>
+      <sprite position={[0, 2.12, 0.05]} scale={[2.4, 2.4, 1]} raycast={noRaycast}>
         <spriteMaterial ref={glow} map={halo} color="#ff9a4d" blending={AdditiveBlending} transparent depthWrite={false} />
       </sprite>
     </group>
   )
 }
 
-/** A little mushroom lamp on top of the set, breathing out of step with the floor lamp. */
-export function TableLamp({ reducedMotion, ...props }: WithMotion) {
+/** A little mushroom lamp on top of the set, breathing out of step with the floor lamp. Click it to switch it. */
+export function TableLamp({ reducedMotion, on, onToggle, ...props }: WithMotion & Switchable) {
   const bulb = useRef<PointLight>(null)
   const dome = useRef<MeshStandardMaterial>(null)
+  const lit = useLampLevel(on, reducedMotion, 3.4)
+  const handlers = useSwitch(onToggle)
 
-  useFrame(({ clock }) => {
-    const level = breath((reducedMotion ? 2 : clock.elapsedTime) + 3.4)
-    if (bulb.current) bulb.current.intensity = 4 * level
-    if (dome.current) dome.current.emissiveIntensity = 0.8 + 1.4 * level
+  useFrame(({ clock }, delta) => {
+    const { power, level } = lit(clock.elapsedTime, delta)
+    if (bulb.current) bulb.current.intensity = 4 * level * power
+    if (dome.current) dome.current.emissiveIntensity = (0.8 + 1.4 * level) * power
   })
 
   return (
-    <group {...props}>
+    <group {...props} {...handlers}>
       <mesh position={[0, 0.02, 0]} castShadow>
         <cylinderGeometry args={[0.13, 0.15, 0.04, 32]} />
         <meshStandardMaterial color="#c49a5c" metalness={1} roughness={0.3} />

@@ -397,12 +397,19 @@ address {
   color: var(--mood-ink);
   transition:
     background 0.3s ease,
-    box-shadow 0.3s ease;
+    box-shadow 0.3s ease,
+    translate 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
 .site-header[data-scrolled] {
   background: var(--mood-base);
   box-shadow: 0 1px 0 color-mix(in srgb, var(--mood-ink) 20%, transparent);
+}
+
+/* While the Casa TV room fills the screen the header steps aside; scrolling up or tabbing into it brings it back. */
+html[data-immersed] .site-header:not(:focus-within) {
+  translate: 0 calc(-100% - 2px);
+  box-shadow: none;
 }
 
 .header-logo {
@@ -1232,6 +1239,68 @@ html:has(.sheet[open]) {
   justify-items: start;
   gap: 8px;
   pointer-events: none;
+  transition: translate 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/* With the header gone, the title and the sound switch move up into its place. */
+html[data-immersed] :is(.casa-tv-head, .casa-tv-sound) {
+  translate: 0 calc(var(--header-h) * -1);
+}
+
+/* Keyboard shortcuts, for visitors with a keyboard and mouse. */
+.casa-tv-keys {
+  display: none;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  opacity: 0.7;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .casa-tv-keys {
+    display: block;
+  }
+}
+
+/* The room's sound: off until asked for. */
+.casa-tv-sound {
+  position: absolute;
+  z-index: 2;
+  top: calc(var(--header-h) + clamp(8px, 2.5vh, 28px));
+  right: var(--gutter);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 16px 0 12px;
+  border: 1.5px solid rgb(237 225 211 / 0.55);
+  border-radius: 999px;
+  background: rgb(18 11 8 / 0.6);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  color: var(--cream);
+  font: 500 12px / 1 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    translate 0.5s cubic-bezier(0.2, 0.7, 0.2, 1),
+    background 0.2s ease,
+    color 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.casa-tv-sound:hover {
+  border-color: var(--cream);
+}
+
+.casa-tv-sound[aria-pressed='true'] {
+  border-color: var(--cream);
+  background: var(--cream);
+  color: var(--charcoal);
+}
+
+.sound-icon {
+  flex: none;
 }
 
 .casa-tv-head .label {

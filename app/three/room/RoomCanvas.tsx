@@ -10,10 +10,13 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Bloom, DepthOfField, EffectComposer, N8AO, ToneMapping, Vignette } from '@react-three/postprocessing'
 import { ToneMappingMode } from 'postprocessing'
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
-import { MathUtils, Vector3, type PointLight } from 'three'
-import { loadTvAssets, type TvAssets, type TvData } from '../channels'
+import { MathUtils, Vector3, type HemisphereLight, type PerspectiveCamera, type PointLight } from 'three'
+import { CHANNELS, loadTvAssets, type TvAssets, type TvData } from '../channels'
+import { CasaCam } from './CasaCam'
 import { FloorLamp, HangingRecords, Plant, RecordCrate } from './Furniture'
-import { breath, CENTRE_Y, FOV, FRONT_Z, layoutFor, SCREEN_SIZE, SCREEN_X, type Layout } from './layout'
+import { Haze } from './Haze'
+import { useLampLevel } from './lampLevel'
+import { CENTRE_Y, FOV, FRONT_Z, layoutFor, SCREEN_SIZE, SCREEN_X, type Layout } from './layout'
 import { Television } from './Television'
 import { floorTexture, rugTexture, wallpaperTexture } from './textures'
 
@@ -21,10 +24,16 @@ import { floorTexture, rugTexture, wallpaperTexture } from './textures'
  * The room from the concept deck: a warm corner with an old TV as the feature, lamps whose light breathes instead
  * of flashing, a plant in subdued green, records overhead and a crate of them on the floor. Everything is built
  * from primitives and painted textures, so there are no model or image files to load. As the section scrolls in,
- * the camera walks from the doorway up to the set.
+ * the camera walks from the doorway up to the set. The lamps switch, the volume knob turns the sound on, and a
+ * security camera on the ceiling films the room for Casa Cam.
  */
 
 type Quality = 'high' | 'low'
+
+export interface Lamps {
+  floor: boolean
+  table: boolean
+}
 
 interface RoomCanvasProps {
   channel: number
@@ -35,6 +44,10 @@ interface RoomCanvasProps {
   /** How far through the section the visitor has scrolled (0–1): drives the walk up to the set. */
   progress: RefObject<number>
   onNext: () => void
+  sound: boolean
+  onSound: () => void
+  lamps: Lamps
+  onLamp: (lamp: keyof Lamps) => void
   /** Called once the first frames have drawn, so the flat fallback TV can step aside. */
   onReady?: () => void
   /**
@@ -126,31 +139,56 @@ function Room({
   reducedMotion,
   progress,
   onNext,
+  sound,
+  onSound,
+  lamps,
+  onLamp,
   onNoteMove,
   quality,
 }: RoomCanvasProps & { quality: Quality }) {
   const size = useThree((state) => state.size)
   const layout = useMemo(() => layoutFor(size.width / Math.max(size.height, 1)), [size.width, size.height])
   const assets = useTvAssets()
+  const cctv = useRef<PerspectiveCamera>(null)
 
   return (
     <>
       <color attach="background" args={['#140b07']} />
       <fogExp2 attach="fog" args={['#170c07', 0.04]} />
-      <hemisphereLight args={['#ffb27a', '#1a0c06', 0.35]} />
+      <Ambient lamps={lamps} reducedMotion={reducedMotion} />
       <Reflections />
       <CameraRig layout={layout} progress={progress} reducedMotion={reducedMotion} />
 
       <Walls />
       <Floor quality={quality} />
       <Rug />
-      <WallWash reducedMotion={reducedMotion} />
+      <WallWash lamps={lamps} reducedMotion={reducedMotion} />
 
-      <Television channel={channel} data={data} assets={assets} reducedMotion={reducedMotion} onNext={onNext} />
-      <FloorLamp position={layout.lamp.position} scale={layout.lamp.scale} aim={-1} reducedMotion={reducedMotion} />
+      <Television
+        channel={channel}
+        data={data}
+        assets={assets}
+        reducedMotion={reducedMotion}
+        onNext={onNext}
+        sound={sound}
+        onSound={onSound}
+        lamp={lamps.table}
+        onLamp={() => onLamp('table')}
+        cctv={cctv}
+      />
+      <FloorLamp
+        position={layout.lamp.position}
+        scale={layout.lamp.scale}
+        aim={-1}
+        reducedMotion={reducedMotion}
+        on={lamps.floor}
+        onToggle={() => onLamp('floor')}
+      />
       <Plant position={layout.plant.position} scale={layout.plant.scale} reducedMotion={reducedMotion} />
       <RecordCrate position={layout.crate.position} rotation-y={layout.crate.rotation} assets={assets} />
       <HangingRecords portrait={layout.portrait} assets={assets} reducedMotion={reducedMotion} />
+      <CasaCam camera={cctv} live={CHANNELS[channel].id === 'cam'} reducedMotion={reducedMotion} />
+      <Haze layout={layout} lamps={lamps} count={quality === 'high' ? 8 : 4} reducedMotion={reducedMotion} />
 
       {/* Dust hanging in the lamplight. */}
       <Sparkles
@@ -212,10 +250,13 @@ function CameraRig({ layout, progress, reducedMotion }: CameraRigProps) {
   return null
 }
 
+/** How strongly the room's reflections light it with the lamps on. */
+const ENVIRONMENT = 0.5
+
 /** What the glass, brass and varnish reflect: the room's lamps and warm walls, rendered once into an env map. */
 function Reflections() {
   return (
-    <Environment resolution={128} frames={1} environmentIntensity={0.5}>
+    <Environment resolution={128} frames={1} environmentIntensity={ENVIRONMENT}>
       <color attach="background" args={['#0f0805']} />
       <Lightformer form="rect" intensity={1.2} color="#ff9a55" position={[0, 6, 0]} rotation-x={Math.PI / 2} scale={[10, 10, 1]} />
       <Lightformer form="circle" intensity={6} color="#ffb36b" position={[2.4, 2.2, -0.5]} scale={0.9} />
@@ -296,14 +337,36 @@ function Rug() {
   )
 }
 
-/** Warm light pooling on the wall behind the set and in the corner, breathing out of step with the lamps. */
-function WallWash({ reducedMotion }: { reducedMotion: boolean }) {
+/**
+ * The room's fill light and reflections, which are mostly the lamps bouncing off the walls: with both switched off,
+ * the telly lights the room.
+ */
+function Ambient({ lamps, reducedMotion }: { lamps: Lamps; reducedMotion: boolean }) {
+  const fill = useRef<HemisphereLight>(null)
+  const table = useLampLevel(lamps.table, reducedMotion)
+  const floor = useLampLevel(lamps.floor, reducedMotion)
+  useFrame(({ clock, scene }, delta) => {
+    const lit = (table(clock.elapsedTime, delta).power + floor(clock.elapsedTime, delta).power) / 2
+    if (fill.current) fill.current.intensity = 0.12 + 0.23 * lit
+    scene.environmentIntensity = ENVIRONMENT * (0.3 + 0.7 * lit)
+  })
+  return <hemisphereLight ref={fill} args={['#ffb27a', '#1a0c06', 0.35]} />
+}
+
+/**
+ * Warm light pooling on the wall behind the set and in the corner, breathing out of step with the lamps. Most of
+ * it is the lamps' spill, so it sinks when they're switched off.
+ */
+function WallWash({ lamps, reducedMotion }: { lamps: Lamps; reducedMotion: boolean }) {
   const behind = useRef<PointLight>(null)
   const corner = useRef<PointLight>(null)
-  useFrame(({ clock }) => {
-    const time = reducedMotion ? 2 : clock.elapsedTime
-    if (behind.current) behind.current.intensity = 9 * breath(time + 1.7)
-    if (corner.current) corner.current.intensity = 6 * breath(time + 4.1)
+  const table = useLampLevel(lamps.table, reducedMotion, 1.7)
+  const floor = useLampLevel(lamps.floor, reducedMotion, 4.1)
+  useFrame(({ clock }, delta) => {
+    const back = table(clock.elapsedTime, delta)
+    const side = floor(clock.elapsedTime, delta)
+    if (behind.current) behind.current.intensity = 9 * back.level * (0.15 + 0.85 * back.power)
+    if (corner.current) corner.current.intensity = 6 * side.level * (0.15 + 0.85 * side.power)
   })
   return (
     <>
