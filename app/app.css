@@ -1230,6 +1230,15 @@ html:has(.sheet[open]) {
   animation: fade-in 1.2s ease both;
 }
 
+/* The lens darkening at the edges of the room, drawn over the canvas. */
+.casa-tv[data-room='ready'] .casa-tv-stage::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 72% 68% at 50% 52%, transparent 52%, rgb(8 4 2 / 0.62));
+  pointer-events: none;
+}
+
 .casa-tv-head {
   position: absolute;
   z-index: 2;

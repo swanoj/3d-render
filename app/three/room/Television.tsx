@@ -140,7 +140,7 @@ function useScreen(
     uTime: { value: 0 },
     uStatic: { value: 0 },
     uPower: { value: 0 },
-    uBoost: { value: 1.35 },
+    uBoost: { value: 1.1 },
     uCam: { value: feeds[0].texture },
     uCamMix: { value: 0 },
   }))

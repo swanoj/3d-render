@@ -22,7 +22,7 @@ uniform sampler2D uContent;
 uniform float uTime;
 uniform float uStatic;
 uniform float uPower;
-// Above 1 so the brightest parts of the picture glow (bloom) like a real tube.
+// A touch above 1, so the picture reads brighter than the lamplit room around it.
 uniform float uBoost;
 // Casa Cam: the camera's picture of the room (linear, unclamped), and 1 while that channel is on.
 uniform sampler2D uCam;
@@ -36,7 +36,8 @@ float rand(vec2 co) {
 
 // A cheap security camera: black and white with a green cast, and shadows lifted.
 float camLuma(vec2 p) {
-  vec3 c = max(texture2D(uCam, p).rgb, 0.0);
+  // Clamped first, so a stray infinite or negative value from the camera's render can't turn into NaN here.
+  vec3 c = clamp(texture2D(uCam, p).rgb, 0.0, 64.0);
   c = c / (1.0 + c);
   return pow(max(dot(c, vec3(0.299, 0.587, 0.114)), 0.0), 0.75) * 1.3;
 }

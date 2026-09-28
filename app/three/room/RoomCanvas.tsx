@@ -1,16 +1,14 @@
-import {
-  ContactShadows,
-  Environment,
-  Lightformer,
-  MeshReflectorMaterial,
-  PerformanceMonitor,
-  Sparkles,
-} from '@react-three/drei'
+import { ContactShadows, Environment, Lightformer, PerformanceMonitor, Sparkles } from '@react-three/drei'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { Bloom, DepthOfField, EffectComposer, N8AO, ToneMapping, Vignette } from '@react-three/postprocessing'
-import { ToneMappingMode } from 'postprocessing'
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
-import { MathUtils, Vector3, type HemisphereLight, type PerspectiveCamera, type PointLight } from 'three'
+import {
+  MathUtils,
+  NeutralToneMapping,
+  Vector3,
+  type HemisphereLight,
+  type PerspectiveCamera,
+  type PointLight,
+} from 'three'
 import { CHANNELS, loadTvAssets, type TvAssets, type TvData } from '../channels'
 import { CasaCam } from './CasaCam'
 import { FloorLamp, HangingRecords, Plant, RecordCrate } from './Furniture'
@@ -62,15 +60,20 @@ interface RoomCanvasProps {
   onNoteMove?: (x: number, y: number, opacity: number) => void
 }
 
-/** `?quality=high` or `?quality=low` pins the effects, for testing on unusual hardware. */
+/** `?quality=high` or `?quality=low` pins the detail level, for testing on unusual hardware. */
 function forcedQuality(): Quality | null {
   const value = new URLSearchParams(window.location.search).get('quality')
   return value === 'high' || value === 'low' ? value : null
 }
 
+/*
+ * No post-processing (bloom, ambient occlusion, depth of field): on some Mac GPUs the scene produces a few invalid
+ * pixels (NaN or infinite values), and the bloom's blur smeared them into a black box over most of the room. The
+ * room renders straight to the screen instead, tone mapped by three.js, with the vignette drawn in CSS.
+ */
 export default function RoomCanvas(props: RoomCanvasProps) {
   const { active, reducedMotion, onReady, onLost } = props
-  // Full effects unless the device looks modest; the monitor steps down if frames drop below 50 a second.
+  // More detail unless the device looks modest; the monitor steps down if frames drop below 50 a second.
   const [quality, setQuality] = useState<Quality>(
     () => forcedQuality() ?? ((navigator.hardwareConcurrency ?? 8) <= 4 ? 'low' : 'high'),
   )
@@ -84,32 +87,15 @@ export default function RoomCanvas(props: RoomCanvasProps) {
       dpr={dpr}
       camera={{ position: [0, 2.2, 14], fov: FOV, near: 0.1, far: 60 }}
       frameloop={active ? (reducedMotion ? 'demand' : 'always') : 'never'}
-      gl={{ antialias: false, powerPreference: 'high-performance' }}
+      gl={{ antialias: true, powerPreference: 'high-performance', toneMapping: NeutralToneMapping }}
     >
       <PerformanceMonitor onDecline={() => setQuality(forcedQuality() ?? 'low')} />
       <FirstFrames onReady={onReady} />
       <ContextWatch onLost={onLost} />
       <Room {...props} quality={quality} />
-      {quality === 'high' ? (
-        <EffectComposer multisampling={4}>
-          <N8AO halfRes aoRadius={0.5} distanceFalloff={0.6} intensity={1.8} quality="medium" />
-          <DepthOfField target={FOCUS} worldFocusRange={2.6} bokehScale={2.4} />
-          <Bloom mipmapBlur luminanceThreshold={0.9} luminanceSmoothing={0.25} intensity={0.8} radius={0.7} />
-          <Vignette offset={0.3} darkness={0.65} />
-          <ToneMapping mode={ToneMappingMode.NEUTRAL} />
-        </EffectComposer>
-      ) : (
-        <EffectComposer multisampling={2}>
-          <Bloom mipmapBlur luminanceThreshold={0.9} luminanceSmoothing={0.25} intensity={0.7} radius={0.7} />
-          <Vignette offset={0.3} darkness={0.65} />
-          <ToneMapping mode={ToneMappingMode.NEUTRAL} />
-        </EffectComposer>
-      )}
     </Canvas>
   )
 }
-
-const FOCUS: [number, number, number] = [SCREEN_X, CENTRE_Y, FRONT_Z]
 
 /** Reports ready after a few frames have actually drawn (shaders compiled), so the flat set never gives way to black. */
 function FirstFrames({ onReady }: { onReady?: () => void }) {
@@ -181,7 +167,7 @@ function Room({
       <CameraRig layout={layout} progress={progress} reducedMotion={reducedMotion} />
 
       <Walls />
-      <Floor quality={quality} />
+      <Floor />
       <Rug />
       <WallWash lamps={lamps} reducedMotion={reducedMotion} />
 
@@ -319,31 +305,16 @@ function Walls() {
   )
 }
 
-/** Varnished boards. On capable devices they reflect the lamps and the set, softly blurred. */
-function Floor({ quality }: { quality: Quality }) {
+/**
+ * Varnished boards, catching the lamps in their sheen. (A blurred mirror reflection would need its own blur pass,
+ * which can smear bad pixels just like bloom.)
+ */
+function Floor() {
   const boards = useMemo(() => floorTexture(), [])
   return (
     <mesh rotation-x={-Math.PI / 2} position={[1, 0, 2]} receiveShadow>
       <planeGeometry args={[20, 16]} />
-      {quality === 'high' ? (
-        <MeshReflectorMaterial
-          map={boards}
-          color="#b08c76"
-          resolution={512}
-          blur={[300, 90]}
-          mixBlur={1}
-          mixStrength={2.4}
-          mixContrast={1.1}
-          mirror={0.6}
-          depthScale={0.9}
-          minDepthThreshold={0.4}
-          maxDepthThreshold={1.3}
-          roughness={0.7}
-          metalness={0.2}
-        />
-      ) : (
-        <meshStandardMaterial map={boards} color="#b08c76" roughness={0.65} metalness={0.1} />
-      )}
+      <meshStandardMaterial map={boards} color="#b08c76" roughness={0.6} metalness={0.1} />
     </mesh>
   )
 }
