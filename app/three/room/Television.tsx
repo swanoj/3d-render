@@ -110,7 +110,7 @@ function useScreen(channel: number, data: TvData, assets: TvAssets | null, reduc
     uPower: { value: 0 },
     uBoost: { value: 1.35 },
   }))
-  const view = useRef({ pending: channel, switchedAt: -Infinity, osdUntil: 0, lastDraw: 0, clock: 0 })
+  const view = useRef({ pending: channel, switchedAt: -Infinity, osdUntil: 0, lastDraw: 0, clock: 0, failed: false })
 
   useEffect(() => () => surface.texture.dispose(), [surface])
 
@@ -153,8 +153,14 @@ function useScreen(channel: number, data: TvData, assets: TvAssets | null, reduc
       const ctx = surface.canvas.getContext('2d')
       if (ctx) {
         const osd = MathUtils.clamp((state.osdUntil - now) / 400, 0, 1)
-        drawChannel(ctx, shown.current, data, state.clock, Date.now(), assets, osd)
-        ;(u.uContent.value as CanvasTexture).needsUpdate = true
+        // A drawing error must never stop the render loop: the room keeps running with the last good picture.
+        try {
+          drawChannel(ctx, shown.current, data, state.clock, Date.now(), assets, osd)
+          ;(u.uContent.value as CanvasTexture).needsUpdate = true
+        } catch (error) {
+          if (!state.failed) console.warn('Casa TV could not draw a channel.', error)
+          state.failed = true
+        }
         state.lastDraw = now
       }
     }

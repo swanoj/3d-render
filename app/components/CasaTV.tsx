@@ -169,9 +169,15 @@ function TvFallback({ channel, flicks, data, paused, reducedMotion, onNext }: Tv
     loadTvAssets().then(
       (assets) => {
         if (cancelled) return
+        let failed = false
         const draw = (time: number) => {
           const osd = Math.min(1, Math.max(0, (changedAt.current + 2600 - time) / 400))
-          drawChannel(ctx, channel, data, reducedMotion ? 0 : (time - start) / 1000, Date.now(), assets, osd)
+          try {
+            drawChannel(ctx, channel, data, reducedMotion ? 0 : (time - start) / 1000, Date.now(), assets, osd)
+          } catch (error) {
+            if (!failed) console.warn('Casa TV could not draw a channel.', error)
+            failed = true
+          }
         }
         if (reducedMotion) {
           draw(performance.now())
