@@ -1188,20 +1188,35 @@ html:has(.sheet[open]) {
 /* ---------- Casa TV ---------- */
 
 .casa-tv {
-  --room: #170e0a;
+  --room: #140b07;
   position: relative;
-  height: max(640px, 100svh);
-  overflow: hidden;
   background: var(--room);
   color: var(--cream);
   --accent: var(--orange);
+}
+
+.casa-tv-pin {
+  position: relative;
+  height: 100svh;
+  min-height: 560px;
+  overflow: hidden;
+  container-type: size;
   isolation: isolate;
+}
+
+/* With the 3D room, the section is taller than the screen and its inner box holds still while the camera walks in. */
+.casa-tv[data-3d] {
+  height: 190svh;
+}
+
+.casa-tv[data-3d] .casa-tv-pin {
+  position: sticky;
+  top: 0;
 }
 
 .casa-tv-stage {
   position: absolute;
   inset: 0;
-  container-type: size;
 }
 
 .room-canvas {
@@ -1211,7 +1226,7 @@ html:has(.sheet[open]) {
 .casa-tv-head {
   position: absolute;
   z-index: 2;
-  top: clamp(28px, 6vh, 64px);
+  top: calc(var(--header-h) + clamp(8px, 2.5vh, 28px));
   left: var(--gutter);
   display: grid;
   justify-items: start;
@@ -1224,7 +1239,7 @@ html:has(.sheet[open]) {
 }
 
 .casa-tv-title {
-  font-size: clamp(56px, 8vw, 128px);
+  font-size: clamp(52px, 6.5vw, 104px);
 }
 
 /* Tall screens: under the title, with a long arrow down to the set. */
@@ -1237,32 +1252,41 @@ html:has(.sheet[open]) {
   margin-left: 0.8em;
 }
 
-/* Wide screens: beside the set, the arrow landing on the left edge of the picture (see useLayout in RoomCanvas). */
-.casa-tv-note--wide {
-  position: absolute;
-  z-index: 2;
-  top: calc(44cqh - 1.8em);
-  left: calc(50cqw - 25.3cqh - 9.4em);
-  display: none;
-  grid-auto-flow: column;
-  align-items: end;
-  transition: opacity 0.6s ease;
-}
-
-@media (min-aspect-ratio: 4 / 3) {
+/* Wide screens: the note lives in the 3D scene instead, pinned beside the picture (TapNote in RoomCanvas). */
+@media (min-aspect-ratio: 1 / 1) {
   .casa-tv-note--tall {
     display: none;
   }
+}
 
-  .casa-tv-note--wide {
-    display: inline-grid;
+/* Moved every frame to the left edge of the 3D picture (NoteAnchor in RoomCanvas); the arrow tip sits on that point. */
+.room-note {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.room-note .note {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  grid-auto-flow: column;
+  align-items: end;
+}
+
+@media (max-aspect-ratio: 1 / 1) {
+  .room-note {
+    display: none;
   }
 }
 
 .casa-tv-controls {
   position: absolute;
   z-index: 2;
-  bottom: clamp(18px, 4vh, 44px);
+  bottom: clamp(14px, 3vh, 36px);
   left: 50%;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -1343,7 +1367,8 @@ html:has(.sheet[open]) {
 }
 
 .tv-set {
-  --set: min(70cqw, 59cqh);
+  /* Matches the 3D set's close framing: about 60% of the width, or two thirds of the height on wide screens. */
+  --set: min(58cqw, 89cqh);
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 24%;
@@ -1929,6 +1954,12 @@ html:has(.sheet[open]) {
   }
 }
 
+@container (orientation: portrait) {
+  .tv-set {
+    --set: min(94cqw, 89cqh);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -1958,5 +1989,14 @@ html:has(.sheet[open]) {
 
   .film-track[aria-hidden] {
     display: none;
+  }
+
+  /* No walk-in: the room sits in its final framing and the section scrolls like any other. */
+  .casa-tv[data-3d] {
+    height: auto;
+  }
+
+  .casa-tv[data-3d] .casa-tv-pin {
+    position: relative;
   }
 }

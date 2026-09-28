@@ -8,7 +8,7 @@ Server-rendered with React Router 7 (the framework Remix became, which Shopify H
 
 Built from the Alicyte Design asset set and the Prince Bandroom concept deck:
 
-- **Casa TV** (home page): a 3D room with an old television set, a floor lamp and a table lamp whose light slowly breathes, a plant, hanging records and a round rug. Tap the set, or use CH − / CH +, to change channel: next night, line-up, house rules, vinyl nights, test card. It loads only when scrolled near, pauses off screen, and falls back to a flat 2D set without WebGL.
+- **Casa TV** (home page): a 3D corner of the room with a walnut console TV, a floor lamp and a table lamp whose light slowly breathes, a plant, hanging records, a crate of records and dust in the lamplight. The section pins while you scroll and the camera walks in from the doorway until the set fills the screen. Tap the set, or use CH − / CH +, to change channel: next night, line-up, house rules, vinyl nights, test card. Reflections, bloom, ambient occlusion and depth of field run on capable devices and step down automatically when frames drop (`?quality=low` or `?quality=high` pins it). It loads only when scrolled near, pauses off screen, and falls back to a flat 2D set without WebGL.
 - **Wordmark wall** behind every page, in each night's colourway, with warm lamp glows that fade in and out (no flashing).
 - **Hand-drawn layer:** notes and arrows ("save the date", "pop it in the diary") that draw themselves on scroll, a doodle stamp for each night, a circled "All vinyl" badge, and a handwritten house-rules card on `/info`.
 - **Film strip** of photos from past nights, faded and grainy. Until there are photos, the frames show as still developing.
