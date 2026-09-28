@@ -3,26 +3,45 @@ import type { Route } from './+types/info'
 import { brand } from '../brand/brand'
 import { Mark } from '../components/Mark'
 import { Motif, Scribble } from '../components/Scribble'
-import { getHouse } from '../content/content.server'
+import { getGuide, getHouse } from '../content/content.server'
 import type { RouteHandle } from '../lib/mood'
 import { seo } from '../lib/seo'
 
 export const handle: RouteHandle = { mood: 'cream' }
 
-export function meta() {
-  return seo({ title: 'Info', description: `Where to find Club Casa, entry, tickets and the house rules.` })
+export function meta({ loaderData }: Route.MetaArgs) {
+  return [
+    ...seo({
+      title: 'Info',
+      description: 'Where to find Club Casa, getting there, entry, tickets, the house rules and answers to common questions.',
+    }),
+    ...(loaderData ? [{ 'script:ld+json': faqJsonLd(loaderData.faq) }] : []),
+  ]
 }
 
 export async function loader() {
-  const { houseRules, room } = await getHouse()
-  return { houseRules, room }
+  const [{ houseRules, room }, { faq, gettingThere }] = await Promise.all([getHouse(), getGuide()])
+  return { houseRules, room, faq, gettingThere }
+}
+
+/** schema.org FAQ data, so search engines can answer questions about the night directly. */
+function faqJsonLd(faq: { question: string; answer: string }[]) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faq.map(({ question, answer }) => ({
+      '@type': 'Question',
+      name: question,
+      acceptedAnswer: { '@type': 'Answer', text: answer },
+    })),
+  }
 }
 
 // Each rule sits a little crooked, as if written on the card by hand.
 const TILTS = [-1.2, 0.8, -0.4, 1.1, -0.9, 0.5]
 
 export default function Info({ loaderData }: Route.ComponentProps) {
-  const { houseRules, room } = loaderData
+  const { houseRules, room, faq, gettingThere } = loaderData
   const { venue } = brand
   return (
     <>
@@ -53,6 +72,18 @@ export default function Info({ loaderData }: Route.ComponentProps) {
             <dt>Tickets</dt>
             <dd>Each night links to its tickets when they go on sale. Get on the list to hear first.</dd>
           </div>
+        </dl>
+
+        <h2 id="getting-there" className="label block-label block-label--spaced">
+          Getting there
+        </h2>
+        <dl className="info-list">
+          {gettingThere.map((way) => (
+            <div key={way.label}>
+              <dt>{way.label}</dt>
+              <dd>{way.text}</dd>
+            </div>
+          ))}
         </dl>
       </section>
 
@@ -102,6 +133,22 @@ export default function Info({ loaderData }: Route.ComponentProps) {
           <Motif name="record" className="room-doodle room-doodle--record" delay={750} />
           <Motif name="mirror" className="room-doodle room-doodle--mirror" delay={1000} />
           <Motif name="star" className="room-doodle room-doodle--star" delay={1250} />
+        </div>
+      </section>
+
+      <section id="faq" className="surface surface--cream block" aria-labelledby="faq-title">
+        <div className="block-heading">
+          <h2 id="faq-title" className="hand block-title">
+            Good to know
+          </h2>
+        </div>
+        <div className="faq">
+          {faq.map(({ question, answer }) => (
+            <details key={question}>
+              <summary>{question}</summary>
+              <p className="mono">{answer}</p>
+            </details>
+          ))}
         </div>
       </section>
 

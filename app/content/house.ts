@@ -1,5 +1,3 @@
-import type { Photo } from './types'
-
 /*
  * DRAFT COPY from the Prince Bandroom concept deck ("hand-written house rules", "lighting pulsates rather than
  * flashes", plants, lamps, old TVs, hanging vinyls, monthly vinyl nights). Confirm the rules with the venue before
@@ -24,6 +22,3 @@ export const room = {
   /** The circled words get a marker ring around them. */
   vinyl: { lead: 'Once a month the room goes', circled: 'all vinyl' },
 }
-
-/** Photos from past nights. Empty until the first night has happened; the film strip shows frames developing. */
-export const photos: Photo[] = []

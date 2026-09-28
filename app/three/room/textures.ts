@@ -96,6 +96,39 @@ export function glowTexture() {
   })
 }
 
+/**
+ * Light spilling off the edges of a lit picture tube, for a plane `planeWidth` × `planeHeight` around a screen
+ * `screenWidth` × `screenHeight`. The middle is clear, so the halo never washes out the picture.
+ */
+export function screenGlowTexture(planeWidth: number, planeHeight: number, screenWidth: number, screenHeight: number) {
+  const width = 512
+  const height = Math.round((width * planeHeight) / planeWidth)
+  return canvasTexture(width, height, (ctx) => {
+    const w = (screenWidth / planeWidth) * width
+    const h = (screenHeight / planeHeight) * height
+    const x = (width - w) / 2
+    const y = (height - h) / 2
+    // Rounded rectangles by hand: CanvasRenderingContext2D.roundRect is missing from older Safari.
+    const rounded = (left: number, top: number, right: number, bottom: number, r: number) => {
+      ctx.beginPath()
+      ctx.moveTo(left + r, top)
+      ctx.arcTo(right, top, right, bottom, r)
+      ctx.arcTo(right, bottom, left, bottom, r)
+      ctx.arcTo(left, bottom, left, top, r)
+      ctx.arcTo(left, top, right, top, r)
+      ctx.closePath()
+      ctx.fill()
+    }
+    ctx.shadowColor = 'rgba(255,255,255,1)'
+    ctx.shadowBlur = 70
+    ctx.fillStyle = 'rgba(255,255,255,0.9)'
+    rounded(x, y, x + w, y + h, 34)
+    ctx.shadowBlur = 0
+    ctx.globalCompositeOperation = 'destination-out'
+    rounded(x + 8, y + 8, x + w - 8, y + h - 8, 28)
+  })
+}
+
 /** A round vintage rug: concentric bands in the brand's reds with a thin ring of cream. */
 export function rugTexture() {
   const random = seeded(9)

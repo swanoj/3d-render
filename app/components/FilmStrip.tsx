@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react'
+import { Link } from 'react-router'
 import type { Photo } from '../content/types'
 import { Note } from './Scribble'
 
@@ -20,6 +21,7 @@ const UNDEVELOPED = [
 export function FilmStrip({ photos }: { photos: Photo[] }) {
   const developed = photos.length > 0
   const frames = developed ? photos : UNDEVELOPED
+  const night = photos[0]?.nightSlug
 
   const track = (hidden: boolean) => (
     <ul className="film-track" aria-hidden={hidden || undefined}>
@@ -60,6 +62,11 @@ export function FilmStrip({ photos }: { photos: Photo[] }) {
             ? 'Faded, grainy and no faces. What happens at Casa stays a little mysterious.'
             : 'Photos from each night land here once the film is back from the lab.'}
         </p>
+        {night && (
+          <Link to={`/nights/${night}#photos`} className="text-link" viewTransition>
+            See the night →
+          </Link>
+        )}
       </div>
       <div className="film-window">
         <div className="film-reel">

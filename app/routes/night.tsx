@@ -2,27 +2,34 @@ import { data, Link } from 'react-router'
 import type { Route } from './+types/night'
 import { brand } from '../brand/brand'
 import { Countdown } from '../components/Countdown'
-import { Lineup } from '../components/Lineup'
+import { Gallery } from '../components/Gallery'
+import { Lineup, NextDrop } from '../components/Lineup'
 import { Mark } from '../components/Mark'
+import { OnNow, SetTimes } from '../components/NightOf'
 import { VinylBadge } from '../components/NightRow'
 import { RouteError } from '../components/RouteError'
 import { Motif, Note } from '../components/Scribble'
 import { ShareButton } from '../components/ShareButton'
 import { TicketButton } from '../components/TicketButton'
-import { getNight } from '../content/content.server'
-import type { Night } from '../content/types'
+import { getNight, getPhotos } from '../content/content.server'
+import type { NightView } from '../content/types'
 import { clockTime, posterDate } from '../lib/format'
+import { useNow } from '../lib/hooks'
+import { nightPhase, requestNow } from '../lib/nightOf'
 import { seo } from '../lib/seo'
 
 export async function loader({ params, request }: Route.LoaderArgs) {
-  const night = await getNight(params.slug)
+  const now = requestNow(request)
+  const night = await getNight(params.slug, now)
   if (!night) throw data('Night not found', { status: 404 })
   const url = new URL(`/nights/${night.slug}`, request.url).href
-  return { night, url, now: Date.now(), mood: night.mood }
+  const photos = await getPhotos(night.slug)
+  // A previewed "now" (?now=…) carries on into the clocks in the browser.
+  return { night, url, now, offset: now - Date.now(), photos, mood: night.mood }
 }
 
 /** schema.org event data, so search engines can show the night with its date and venue. */
-function eventJsonLd(night: Night, url: string) {
+function eventJsonLd(night: NightView, url: string) {
   const { venue } = brand
   const confirmed = night.lineupConfirmed && night.lineup.length > 0
   return {
@@ -78,10 +85,14 @@ export function ErrorBoundary() {
 }
 
 export default function NightPage({ loaderData }: Route.ComponentProps) {
-  const { night, now } = loaderData
+  const { night, offset, photos } = loaderData
   const { venue } = brand
+  // Ticks, so the page turns to "on now" at doors, and follows the sets, without a reload.
+  const now = useNow(loaderData.now, { every: 15_000, offset })
+  const phase = nightPhase(night.startsAt, now)
   const doors = Date.parse(night.startsAt)
   const vinyl = night.format === 'vinyl'
+  const live = phase === 'live'
 
   return (
     <>
@@ -100,13 +111,18 @@ export default function NightPage({ loaderData }: Route.ComponentProps) {
         <p className="label">
           {clockTime(night.startsAt)}–{night.closes} · {venue.name}, St Kilda
         </p>
-        {night.lineup.length ? (
+        {live && <OnNow sets={night.setTimes} now={now} />}
+        {night.acts.length ? (
           <div className="night-hero-lineup">
-            <Lineup names={night.lineup} />
-            {!night.lineupConfirmed && (
-              <Note className="lineup-note" arrow="arrow" flip delay={500}>
-                more names soon
-              </Note>
+            <Lineup acts={night.acts} />
+            {night.nextDrop ? (
+              <NextDrop drop={night.nextDrop} now={now} offset={offset} />
+            ) : (
+              !night.lineupConfirmed && (
+                <Note className="lineup-note" arrow="arrow" flip delay={500}>
+                  more names soon
+                </Note>
+              )
             )}
           </div>
         ) : (
@@ -125,7 +141,7 @@ export default function NightPage({ loaderData }: Route.ComponentProps) {
         </div>
         {doors > now && (
           <p className="mono">
-            Doors in <Countdown to={doors} now={now} />
+            Doors in <Countdown to={doors} now={now} offset={offset} />
           </p>
         )}
       </section>
@@ -169,8 +185,40 @@ export default function NightPage({ loaderData }: Route.ComponentProps) {
               </Link>
             </dd>
           </div>
+          <div>
+            <dt>Good to know</dt>
+            <dd>
+              Getting there, ID, what to bring.{' '}
+              <Link to="/info#faq" viewTransition>
+                Read the FAQ →
+              </Link>
+            </dd>
+          </div>
         </dl>
       </section>
+
+      {night.setTimes.length > 0 && phase !== 'past' && (
+        <section className="surface surface--charcoal block" aria-labelledby="sets-title">
+          <div className="block-heading">
+            <h2 id="sets-title" className="hand block-title">
+              Set times
+            </h2>
+            {live && <span className="on-air">Live now</span>}
+          </div>
+          <SetTimes sets={night.setTimes} now={now} live={live} />
+        </section>
+      )}
+
+      {photos.length > 0 && (
+        <section id="photos" className="surface surface--charcoal block" aria-labelledby="photos-title">
+          <div className="block-heading">
+            <h2 id="photos-title" className="hand block-title">
+              From the night
+            </h2>
+          </div>
+          <Gallery photos={photos} date={night.startsAt} />
+        </section>
+      )}
     </>
   )
 }

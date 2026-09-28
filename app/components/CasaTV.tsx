@@ -10,7 +10,7 @@ import {
 } from 'react'
 import { casaSound } from '../lib/casaSound'
 import { pad2 } from '../lib/format'
-import { useReducedMotion, useWebGLSupport } from '../lib/hooks'
+import { useNow, useRadio, useReducedMotion, useWebGLSupport } from '../lib/hooks'
 import { useInView } from '../lib/useInView'
 import { CHANNELS, channelDescription, drawChannel, loadTvAssets, SCREEN, type TvData } from '../three/channels'
 import type { Lamps } from '../three/room/RoomCanvas'
@@ -40,6 +40,9 @@ export function CasaTV({ data }: { data: TvData }) {
   const webgl = useWebGLSupport()
   const reducedMotion = useReducedMotion()
   const sound = useSyncExternalStore(casaSound.subscribe, casaSound.isOn, () => false)
+  const radio = useRadio()
+  // For the caption: on the night, who's on changes while the page is open.
+  const now = useNow(data.now, { every: 15_000, offset: data.offset })
   const { progress, engaged } = useRoomScroll(sectionRef, webgl && !reducedMotion)
   const tapNote = useRef<HTMLDivElement>(null)
   const { channel, flicks } = tuner
@@ -189,7 +192,7 @@ export function CasaTV({ data }: { data: TvData }) {
             <span className="label">
               CH {pad2(channel + 1)} · {current.name}
             </span>
-            <span className="mono">{channelDescription(current.id, data)}</span>
+            <span className="mono">{channelDescription(current.id, data, now, radio.on ? radio.mix : null)}</span>
           </p>
           <button
             type="button"
@@ -300,7 +303,8 @@ function TvFallback({ channel, flicks, data, paused, reducedMotion, onNext }: Tv
         const draw = (time: number) => {
           const osd = Math.min(1, Math.max(0, (changedAt.current + 2600 - time) / 400))
           try {
-            drawChannel(ctx, channel, data, reducedMotion ? 0 : (time - start) / 1000, Date.now(), assets, osd)
+            const clock = reducedMotion ? 0 : (time - start) / 1000
+            drawChannel(ctx, channel, data, clock, Date.now() + data.offset, assets, osd)
           } catch (error) {
             if (!failed) console.warn('Casa TV could not draw a channel.', error)
             failed = true

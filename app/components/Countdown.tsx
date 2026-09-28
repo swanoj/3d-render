@@ -6,11 +6,13 @@ interface CountdownProps {
   to: number
   /** The server's time when it rendered, so the first client render matches the HTML. */
   now: number
+  /** How far a previewed time (`?now=…`) is from the real one. */
+  offset?: number
 }
 
 /** "02d 14h 05m 33s" until `to`, ticking every second. */
-export function Countdown({ to, now: serverNow }: CountdownProps) {
-  const now = useNow(serverNow)
+export function Countdown({ to, now: serverNow, offset = 0 }: CountdownProps) {
+  const now = useNow(serverNow, { offset })
   const remaining = Math.max(0, to - now)
   const seconds = Math.floor(remaining / 1000)
   const parts = [

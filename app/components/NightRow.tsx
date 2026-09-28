@@ -1,20 +1,19 @@
 import { Link } from 'react-router'
-import type { Night } from '../content/types'
+import type { NightStatus, NightView } from '../content/types'
 import { clockTime, dateParts } from '../lib/format'
 import { Mark } from './Mark'
 import { Motif } from './Scribble'
 
-const statusLabel: Record<Night['status'], string> = {
+const statusLabel: Record<NightStatus, string> = {
   announced: 'Tickets soon',
   'on-sale': 'On sale',
   'sold-out': 'Sold out',
 }
 
-export function NightRow({ night }: { night: Night }) {
+export function NightRow({ night }: { night: NightView }) {
   const date = dateParts(night.startsAt)
-  const preview = night.lineup.length
-    ? night.lineup.slice(0, 4).join(' • ') + (night.lineup.length > 4 ? ` + ${night.lineup.length - 4} more` : '')
-    : 'Line-up soon'
+  const more = night.lineup.length > 4 ? ` + ${night.lineup.length - 4} more` : night.nextDrop ? ' + more soon' : ''
+  const preview = night.lineup.length ? night.lineup.slice(0, 4).join(' • ') + more : 'Line-up soon'
 
   return (
     <li>

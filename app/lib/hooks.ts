@@ -1,4 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
+import { mixes } from '../content/radio'
+import { casaSound, type RadioState } from './casaSound'
 
 const noopSubscribe = () => () => {}
 
@@ -44,12 +46,23 @@ export function useWebGLSupport() {
   return useSyncExternalStore(noopSubscribe, detectWebGL, () => false)
 }
 
-/** The current time, ticking once a second after hydration. Starts from `initial` so server and client agree. */
-export function useNow(initial: number) {
+/**
+ * The current time, ticking every `every` ms after hydration. Starts from `initial` so server and client agree;
+ * `offset` carries a previewed time (`?now=…`) on.
+ */
+export function useNow(initial: number, { every = 1000, offset = 0 } = {}) {
   const [now, setNow] = useState(initial)
   useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), 1000)
+    const id = window.setInterval(() => setNow(Date.now() + offset), every)
     return () => window.clearInterval(id)
-  }, [])
+  }, [every, offset])
   return now
 }
+
+/** Casa Radio's state, shared by every control on the page. Off on the server. */
+export function useRadio() {
+  return useSyncExternalStore(casaSound.subscribe, casaSound.radio, radioIdle)
+}
+
+const idle: RadioState = { on: false, mix: mixes[0] }
+const radioIdle = () => idle

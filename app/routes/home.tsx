@@ -4,13 +4,16 @@ import { brand } from '../brand/brand'
 import { CasaTV } from '../components/CasaTV'
 import { Countdown } from '../components/Countdown'
 import { FilmStrip } from '../components/FilmStrip'
-import { Lineup } from '../components/Lineup'
+import { Lineup, NextDrop } from '../components/Lineup'
 import { Mark } from '../components/Mark'
 import { NightRow } from '../components/NightRow'
+import { OnNow } from '../components/NightOf'
 import { Note } from '../components/Scribble'
 import { TicketButton } from '../components/TicketButton'
 import { getHouse, getNights } from '../content/content.server'
 import { clockTime, posterDate } from '../lib/format'
+import { useNow } from '../lib/hooks'
+import { nightPhase, requestNow } from '../lib/nightOf'
 import { seo } from '../lib/seo'
 import type { TvData } from '../three/channels'
 
@@ -18,23 +21,35 @@ export function meta() {
   return seo()
 }
 
-export async function loader() {
-  const now = Date.now()
+export async function loader({ request }: Route.LoaderArgs) {
+  const now = requestNow(request)
   const [{ upcoming }, house] = await Promise.all([getNights(now), getHouse()])
   const next = upcoming[0] ?? null
   const vinylNext = upcoming.find((night) => night.format === 'vinyl') ?? null
   const tv: TvData = {
-    next: next && { title: next.title, startsAt: next.startsAt, closes: next.closes, lineup: next.lineup },
+    next: next && {
+      title: next.title,
+      startsAt: next.startsAt,
+      closes: next.closes,
+      acts: next.acts.map((act) => (act.hidden ? null : act.name)),
+      sets: next.setTimes.map(({ start, name }) => ({ start, name })),
+    },
     vinylNext: vinylNext && { startsAt: vinylNext.startsAt },
     rules: house.houseRules,
     venue: `${brand.venue.name} · St Kilda`,
+    now,
+    // A previewed "now" (?now=…) carries on into the clocks in the browser.
+    offset: now - Date.now(),
   }
   return { next, upcoming, now, tv, photos: house.photos, mood: next?.mood ?? brand.defaultMood }
 }
 
 export default function Home({ loaderData }: Route.ComponentProps) {
-  const { next, upcoming, now, tv, photos } = loaderData
+  const { next, upcoming, tv, photos } = loaderData
   const { venue } = brand
+  // Ticks, so the page turns to "on now" at doors, and follows the sets, without a reload.
+  const now = useNow(loaderData.now, { every: 15_000, offset: tv.offset })
+  const live = next ? nightPhase(next.startsAt, now) === 'live' : false
 
   return (
     <>
@@ -46,9 +61,9 @@ export default function Home({ loaderData }: Route.ComponentProps) {
           <div className="hero-night">
             <p className="label">{next.title}</p>
             <p className="hand hero-date">
-              <time dateTime={next.startsAt}>{posterDate(next.startsAt)}</time>
+              <time dateTime={next.startsAt}>{live ? 'Tonight' : posterDate(next.startsAt)}</time>
               <Note className="hero-note" arrow="arrow" flip delay={900}>
-                save the date
+                {live ? 'come on down' : 'save the date'}
               </Note>
             </p>
             <p className="label hero-time">
@@ -61,9 +76,13 @@ export default function Home({ loaderData }: Route.ComponentProps) {
                 Line-up
               </Link>
             </div>
-            <p className="mono hero-countdown">
-              Doors in <Countdown to={Date.parse(next.startsAt)} now={now} />
-            </p>
+            {live ? (
+              <OnNow sets={next.setTimes} now={now} />
+            ) : (
+              <p className="mono hero-countdown">
+                Doors in <Countdown to={Date.parse(next.startsAt)} now={now} offset={tv.offset} />
+              </p>
+            )}
           </div>
         ) : (
           <p className="hand hero-date">New nights soon</p>
@@ -79,13 +98,17 @@ export default function Home({ loaderData }: Route.ComponentProps) {
           </h2>
           <Mark name="logo-stacked" className="intro-logo" />
           <Mark name="squiggle" className="intro-squiggle" />
-          {next?.lineup.length ? (
+          {next?.acts.length ? (
             <div className="intro-lineup">
-              <Lineup names={next.lineup} />
-              {!next.lineupConfirmed && (
-                <Note className="lineup-note" arrow="arrow" flip delay={400}>
-                  more names soon
-                </Note>
+              <Lineup acts={next.acts} />
+              {next.nextDrop ? (
+                <NextDrop drop={next.nextDrop} now={now} offset={tv.offset} />
+              ) : (
+                !next.lineupConfirmed && (
+                  <Note className="lineup-note" arrow="arrow" flip delay={400}>
+                    more names soon
+                  </Note>
+                )
               )}
             </div>
           ) : (
