@@ -1,3 +1,4 @@
+import { houseRules, photos, room } from './house'
 import { nights } from './nights'
 
 /*
@@ -17,4 +18,8 @@ export async function getNights(now = Date.now()) {
 
 export async function getNight(slug: string) {
   return nights.find((night) => night.slug === slug) ?? null
+}
+
+export async function getHouse() {
+  return { houseRules, room, photos }
 }

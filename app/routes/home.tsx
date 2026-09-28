@@ -1,14 +1,18 @@
 import { Link } from 'react-router'
 import type { Route } from './+types/home'
 import { brand } from '../brand/brand'
+import { CasaTV } from '../components/CasaTV'
 import { Countdown } from '../components/Countdown'
+import { FilmStrip } from '../components/FilmStrip'
 import { Lineup } from '../components/Lineup'
 import { Mark } from '../components/Mark'
 import { NightRow } from '../components/NightRow'
+import { Note } from '../components/Scribble'
 import { TicketButton } from '../components/TicketButton'
-import { getNights } from '../content/content.server'
+import { getHouse, getNights } from '../content/content.server'
 import { clockTime, posterDate } from '../lib/format'
 import { seo } from '../lib/seo'
+import type { TvData } from '../three/channels'
 
 export function meta() {
   return seo()
@@ -16,13 +20,20 @@ export function meta() {
 
 export async function loader() {
   const now = Date.now()
-  const { upcoming } = await getNights(now)
+  const [{ upcoming }, house] = await Promise.all([getNights(now), getHouse()])
   const next = upcoming[0] ?? null
-  return { next, upcoming, now, mood: next?.mood ?? brand.defaultMood }
+  const vinylNext = upcoming.find((night) => night.format === 'vinyl') ?? null
+  const tv: TvData = {
+    next: next && { title: next.title, startsAt: next.startsAt, closes: next.closes, lineup: next.lineup },
+    vinylNext: vinylNext && { startsAt: vinylNext.startsAt },
+    rules: house.houseRules,
+    venue: `${brand.venue.name} · St Kilda`,
+  }
+  return { next, upcoming, now, tv, photos: house.photos, mood: next?.mood ?? brand.defaultMood }
 }
 
 export default function Home({ loaderData }: Route.ComponentProps) {
-  const { next, upcoming, now } = loaderData
+  const { next, upcoming, now, tv, photos } = loaderData
   const { venue } = brand
 
   return (
@@ -36,6 +47,9 @@ export default function Home({ loaderData }: Route.ComponentProps) {
             <p className="label">{next.title}</p>
             <p className="hand hero-date">
               <time dateTime={next.startsAt}>{posterDate(next.startsAt)}</time>
+              <Note className="hero-note" arrow="arrow" flip delay={900}>
+                save the date
+              </Note>
             </p>
             <p className="label hero-time">
               {clockTime(next.startsAt)}–{next.closes} · {venue.name}, St Kilda
@@ -56,6 +70,8 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         )}
       </section>
 
+      <CasaTV data={tv} />
+
       <section className="surface surface--cream intro" aria-labelledby="intro-title">
         <div className="intro-poster">
           <h2 id="intro-title" className="visually-hidden">
@@ -63,7 +79,18 @@ export default function Home({ loaderData }: Route.ComponentProps) {
           </h2>
           <Mark name="logo-stacked" className="intro-logo" />
           <Mark name="squiggle" className="intro-squiggle" />
-          {next?.lineup.length ? <Lineup names={next.lineup} /> : <p className="label">Line-up soon</p>}
+          {next?.lineup.length ? (
+            <div className="intro-lineup">
+              <Lineup names={next.lineup} />
+              {!next.lineupConfirmed && (
+                <Note className="lineup-note" arrow="arrow" flip delay={400}>
+                  more names soon
+                </Note>
+              )}
+            </div>
+          ) : (
+            <p className="label">Line-up soon</p>
+          )}
         </div>
         <div className="intro-copy">
           <p className="mono">{brand.intro}</p>
@@ -90,6 +117,8 @@ export default function Home({ loaderData }: Route.ComponentProps) {
           <p className="mono">New nights soon. Get on the list to hear first.</p>
         )}
       </section>
+
+      <FilmStrip photos={photos} />
 
       <section className="surface surface--cream venue" aria-labelledby="venue-title">
         <Mark name="logo-circled" className="venue-lockup" />

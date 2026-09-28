@@ -25,7 +25,7 @@ export function useRouteMood(): MoodId {
   return brand.defaultMood
 }
 
-const colourNames = ['base', 'ink', 'accent', 'onAccent', 'pattern'] as const
+const colourNames = ['base', 'ink', 'accent', 'onAccent', 'pattern', 'glow'] as const
 
 /** The colourway's CSS custom properties, e.g. ["--mood-on-accent", "#212121"]. */
 export function moodVariables(id: MoodId): [string, string][] {
@@ -36,6 +36,7 @@ export function moodVariables(id: MoodId): [string, string][] {
       mood[name],
     ]),
     ['--mood-pattern-opacity', String(mood.patternOpacity)],
+    ['--mood-glow-strength', String(mood.glowStrength)],
   ]
 }
 

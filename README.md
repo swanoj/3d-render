@@ -4,6 +4,17 @@ The website for Club Casa, a club night upstairs at the Prince Bandroom, 29 Fitz
 
 Server-rendered with React Router 7 (the framework Remix became, which Shopify Hydrogen also runs on), with a WebGL "wordmark wall" behind every page, drawn with React Three Fiber, and deployed on Vercel.
 
+## What's on the site
+
+Built from the Alicyte Design asset set and the Prince Bandroom concept deck:
+
+- **Casa TV** (home page): a 3D room with an old television set, a floor lamp and a table lamp whose light slowly breathes, a plant, hanging records and a round rug. Tap the set, or use CH − / CH +, to change channel: next night, line-up, house rules, vinyl nights, test card. It loads only when scrolled near, pauses off screen, and falls back to a flat 2D set without WebGL.
+- **Wordmark wall** behind every page, in each night's colourway, with warm lamp glows that fade in and out (no flashing).
+- **Hand-drawn layer:** notes and arrows ("save the date", "pop it in the diary") that draw themselves on scroll, a doodle stamp for each night, a circled "All vinyl" badge, and a handwritten house-rules card on `/info`.
+- **Film strip** of photos from past nights, faded and grainy. Until there are photos, the frames show as still developing.
+- **Night pages:** Add to calendar (`/nights/:slug/calendar.ics`), Share (system share sheet, or copies the link), and schema.org event data for search.
+- **Page changes** fold the picture into a line and open the next one, like changing channel. All motion is reduced or off under "reduce motion".
+
 ## Run it
 
 Node.js 24 (see `.nvmrc`).
@@ -20,20 +31,24 @@ npm start        # serve the build on http://localhost:3000
 
 | What | Where |
 | --- | --- |
-| Nights: dates, line-ups, colourway, ticket links | `app/content/nights.ts` |
+| Nights: dates, line-ups, colourway, doodle, vinyl nights, ticket links | `app/content/nights.ts` |
+| House rules, "The room" copy, photos for the film strip | `app/content/house.ts` |
 | Brand: palette, colourways, venue, house copy, nav | `app/brand/brand.ts` |
+| Casa TV channels | `app/three/channels.ts` |
 | Logos and marker strokes | `public/brand/*.svg` |
 | Styles | `app/app.css` |
 
-A night stays on the site after it happens and moves to the archive on `/nights`. Add a `ticketUrl` and set `status: 'on-sale'` to turn its button into **Tickets**; until then it points to the mailing list.
+A night stays on the site after it happens and moves to the archive on `/nights`. Add a `ticketUrl` and set `status: 'on-sale'` to turn its button into **Tickets**; until then it points to the mailing list. Set `lineupConfirmed: true` once the line-up is real bookings: until then the names stay out of search results and calendar files, and the page notes "more names soon".
+
+The schedule in `app/content/nights.ts` and the house rules in `app/content/house.ts` are placeholders until they're confirmed.
 
 ## Brand kit
 
 Taken from the Alicyte Design asset set:
 
-- **Colours:** Orange `#E95E27`, Charcoal `#212121`, Stone `#CCC6BA`, Cream `#EDE1D3`. These are sampled from the palette swatches; two of the hex labels printed on that sheet don't match their swatches.
+- **Colours:** Orange `#E95E27`, Charcoal `#212121`, Stone `#CCC6BA`, Cream `#EDE1D3`. These are sampled from the palette swatches; two of the hex labels printed on that sheet don't match their swatches. The concept deck adds dark pink `#93304F` and red `#AA1F23` as supporting tones, and a subdued green `#4F5B3A` for plants.
 - **Type:** Felt Tip Senior for the logo and hand-drawn display (Kalam stands in where Felt Tip Senior isn't installed, since it has no web licence here); Helvetica Bold for line-ups and labels (Arimo off Apple devices); Roboto Mono in capitals for body copy.
-- **Colourways:** orange, cream and charcoal, from the posters. Each night has one; the page and the wall fade to it.
+- **Colourways:** orange, cream and charcoal from the posters, plus red and pink from the concept deck. Each night has one; the page and the wall fade to it.
 - **Marks:** the logo, stacked logo, submark, circled lockup and marker strokes in `public/brand/` were traced from screenshots of the asset set. Swap in the designer's master SVGs at the same filenames when they arrive.
 
 ## Environment

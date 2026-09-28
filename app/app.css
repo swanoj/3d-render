@@ -41,6 +41,16 @@
   inherits: true;
   initial-value: 0.55;
 }
+@property --mood-glow {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #ffb067;
+}
+@property --mood-glow-strength {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0.34;
+}
 
 :root {
   --orange: #e95e27;
@@ -67,7 +77,9 @@
     --mood-accent 0.9s ease,
     --mood-on-accent 0.9s ease,
     --mood-pattern 0.9s ease,
-    --mood-pattern-opacity 0.9s ease;
+    --mood-pattern-opacity 0.9s ease,
+    --mood-glow 0.9s ease,
+    --mood-glow-strength 0.9s ease;
   background: var(--mood-base);
   color: var(--mood-ink);
   font-family: var(--font-mono);
@@ -98,7 +110,7 @@ body::after {
   inset: 0;
   z-index: 50;
   pointer-events: none;
-  opacity: 0.16;
+  opacity: 0.19;
   mix-blend-mode: multiply;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .5  0 0 0 0 .45  0 0 0 0 .4  0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
@@ -239,6 +251,19 @@ address {
 
 .backdrop-canvas {
   animation: fade-in 1.2s ease both;
+}
+
+/* The lamps in the static wall: warm light that slowly breathes, never flashes. The WebGL wall has its own. */
+.backdrop::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 16% 26%, var(--mood-glow), transparent 42%),
+    radial-gradient(circle at 86% 64%, var(--mood-glow), transparent 48%),
+    radial-gradient(circle at 46% 96%, var(--mood-glow), transparent 38%);
+  opacity: var(--mood-glow-strength);
+  animation: lamp-breathe 10.1s ease-in-out infinite alternate;
 }
 
 /* ---------- Surfaces (the three poster colourways) ---------- */
@@ -980,12 +1005,770 @@ html:has(.sheet[open]) {
   font-size: clamp(72px, 15vw, 210px);
 }
 
+/* ---------- Hand-drawn layer: scribbles, notes and motifs ---------- */
+
+/* Pen strokes that draw themselves the first time they scroll into view (see Scribble.tsx). */
+.scribble {
+  display: block;
+  max-width: none;
+  overflow: visible;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.scribble path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset 0.75s cubic-bezier(0.55, 0.1, 0.35, 1);
+}
+
+.scribble[data-drawn] path {
+  stroke-dashoffset: 0;
+}
+
+.scribble[data-flip] {
+  transform: scaleX(-1);
+}
+
+.scribble--stretch path {
+  vector-effect: non-scaling-stroke;
+  stroke-width: 3px;
+}
+
+/* A handwritten aside with its arrow. Positioned by the class it's given. */
+.note {
+  display: inline-grid;
+  justify-items: start;
+  gap: 2px;
+  color: var(--accent);
+  font: 700 clamp(19px, 1.7vw, 25px) / 1 var(--font-hand);
+  letter-spacing: 0;
+  text-align: left;
+  text-transform: none;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.note-text {
+  display: block;
+  rotate: -5deg;
+}
+
+.note-arrow {
+  width: 3.6em;
+}
+
+.circled {
+  position: relative;
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.circled-ring {
+  position: absolute;
+  top: -34%;
+  left: -12%;
+  width: 124%;
+  height: 168%;
+  color: var(--accent);
+}
+
+.hero-date {
+  position: relative;
+}
+
+.hero-note {
+  position: absolute;
+  bottom: 62%;
+  left: 97%;
+}
+
+.hero-note .note-arrow {
+  justify-self: start;
+  margin-left: -0.9em;
+}
+
+.intro-lineup,
+.night-hero-lineup {
+  position: relative;
+  width: fit-content;
+}
+
+.lineup-note {
+  position: absolute;
+  top: -0.2em;
+  left: calc(100% + 14px);
+  color: var(--accent);
+}
+
+.lineup-note .note-text {
+  margin-left: 1.4em;
+}
+
+/* Weekly motif stamps, standing in for the mascot artwork. */
+.motif {
+  stroke-width: 5;
+}
+
+.night-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+
+.night-motif {
+  width: 34px;
+  color: var(--accent);
+  rotate: -6deg;
+}
+
+.vinyl-badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.45em 1.1em;
+  color: var(--accent);
+  font: 700 12px / 1 var(--font-bold);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.vinyl-badge-oval {
+  position: absolute;
+  top: -44%;
+  left: -20%;
+  width: 136%;
+  height: 188%;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+}
+
+.night-hero-motif {
+  width: clamp(64px, 7vw, 104px);
+  rotate: -8deg;
+  stroke-width: 4;
+}
+
+.night-hero-title {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px 18px;
+}
+
+.night-actions {
+  position: relative;
+}
+
+/* Above the row, its arrow landing on "Add to calendar" (the second button, just right of centre). */
+.calendar-note {
+  position: absolute;
+  bottom: calc(100% - 0.5em);
+  left: calc(50% + 6px);
+}
+
+.calendar-note .note-text {
+  margin-left: 2.2em;
+}
+
+.share-status {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  left: 0;
+  text-align: center;
+}
+
+/* ---------- Casa TV ---------- */
+
+.casa-tv {
+  --room: #170e0a;
+  position: relative;
+  height: max(640px, 100svh);
+  overflow: hidden;
+  background: var(--room);
+  color: var(--cream);
+  --accent: var(--orange);
+  isolation: isolate;
+}
+
+.casa-tv-stage {
+  position: absolute;
+  inset: 0;
+  container-type: size;
+}
+
+.room-canvas {
+  animation: fade-in 1.2s ease both;
+}
+
+.casa-tv-head {
+  position: absolute;
+  z-index: 2;
+  top: clamp(28px, 6vh, 64px);
+  left: var(--gutter);
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.casa-tv-head .label {
+  color: var(--orange);
+}
+
+.casa-tv-title {
+  font-size: clamp(56px, 8vw, 128px);
+}
+
+/* Tall screens: under the title, with a long arrow down to the set. */
+.casa-tv-note--tall {
+  margin: 4px 0 0 clamp(64px, 20vw, 180px);
+}
+
+.casa-tv-note--tall .note-arrow {
+  width: 3.2em;
+  margin-left: 0.8em;
+}
+
+/* Wide screens: beside the set, the arrow landing on the left edge of the picture (see useLayout in RoomCanvas). */
+.casa-tv-note--wide {
+  position: absolute;
+  z-index: 2;
+  top: calc(44cqh - 1.8em);
+  left: calc(50cqw - 25.3cqh - 9.4em);
+  display: none;
+  grid-auto-flow: column;
+  align-items: end;
+  transition: opacity 0.6s ease;
+}
+
+@media (min-aspect-ratio: 4 / 3) {
+  .casa-tv-note--tall {
+    display: none;
+  }
+
+  .casa-tv-note--wide {
+    display: inline-grid;
+  }
+}
+
+.casa-tv-controls {
+  position: absolute;
+  z-index: 2;
+  bottom: clamp(18px, 4vh, 44px);
+  left: 50%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  width: min(100% - 2 * var(--gutter), 760px);
+  padding: 10px;
+  border: 1px solid rgb(237 225 211 / 0.14);
+  border-radius: 30px;
+  background: rgb(18 11 8 / 0.72);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  translate: -50% 0;
+}
+
+.tv-button {
+  height: 48px;
+  padding: 0 18px;
+  border: 2px solid var(--cream);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--cream);
+  font: 500 13px / 1 var(--font-mono);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+
+.tv-button:hover {
+  background: var(--cream);
+  color: var(--charcoal);
+}
+
+.casa-tv-caption {
+  display: grid;
+  gap: 4px;
+  text-align: center;
+}
+
+.casa-tv-caption .label {
+  color: #9cff7a;
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+
+.casa-tv-caption .mono {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 11.5px;
+  line-height: 1.5;
+  opacity: 0.85;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* The flat set: shown while the 3D room loads, and wherever WebGL isn't available. */
+.tv-fallback {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding-top: 3cqh;
+  background:
+    radial-gradient(ellipse 50% 42% at 50% 56%, rgb(255 138 61 / 0.2), transparent 70%),
+    radial-gradient(circle at 10% 38%, rgb(255 162 87 / 0.18), transparent 28%),
+    linear-gradient(transparent 70%, rgb(94 36 18 / 0.35) 70%),
+    var(--room);
+  transition:
+    opacity 1.2s ease,
+    visibility 0s 1.2s;
+}
+
+.casa-tv[data-room='ready'] .tv-fallback {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.tv-set {
+  --set: min(70cqw, 59cqh);
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 24%;
+  align-items: center;
+  gap: calc(var(--set) * 0.04);
+  width: var(--set);
+  aspect-ratio: 2.5 / 1.85;
+  padding: calc(var(--set) * 0.035);
+  border: calc(var(--set) * 0.04) solid transparent;
+  border-radius: calc(var(--set) * 0.06);
+  background:
+    linear-gradient(#1a1310, #1a1310) padding-box,
+    repeating-linear-gradient(176deg, rgb(40 20 10 / 0.18) 0 2px, transparent 2px 9px) border-box,
+    repeating-linear-gradient(183deg, rgb(170 110 70 / 0.14) 0 1px, transparent 1px 13px) border-box,
+    linear-gradient(180deg, #8a5634, #6e4027 60%, #5a331f) border-box;
+  box-shadow:
+    inset 0 2px 0 rgb(255 220 180 / 0.12),
+    0 34px 60px -22px rgb(0 0 0 / 0.85);
+  cursor: pointer;
+}
+
+/* Brass legs. */
+.tv-set::before,
+.tv-set::after {
+  content: '';
+  position: absolute;
+  top: calc(100% + var(--set) * 0.04);
+  width: 2.2%;
+  height: 22%;
+  border-radius: 0 0 40% 40%;
+  background: linear-gradient(90deg, #6d5230, #c09a66, #6d5230);
+  transform-origin: top;
+}
+
+.tv-set::before {
+  left: 8%;
+  rotate: 6deg;
+}
+
+.tv-set::after {
+  right: 8%;
+  rotate: -6deg;
+}
+
+.tv-screen {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: 11% / 14%;
+  /* Colour bars in the brand palette until the first channel is drawn. */
+  background: linear-gradient(
+    90deg,
+    #ede1d3 0 14.3%,
+    #ccc6ba 0 28.6%,
+    #e95e27 0 42.9%,
+    #aa1f23 0 57.1%,
+    #93304f 0 71.4%,
+    #4f5b3a 0 85.7%,
+    #212121 0
+  );
+  box-shadow:
+    0 0 0 calc(var(--set) * 0.022) #0f0c0b,
+    0 0 calc(var(--set) * 0.08) rgb(255 138 61 / 0.25);
+}
+
+.tv-screen canvas {
+  width: 100%;
+  height: 100%;
+}
+
+/* Scanlines, the curve of the glass and a reflection. */
+.tv-screen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background:
+    radial-gradient(ellipse at 28% 18%, rgb(255 245 230 / 0.14), transparent 42%),
+    radial-gradient(ellipse at center, transparent 56%, rgb(0 0 0 / 0.55)),
+    repeating-linear-gradient(0deg, rgb(0 0 0 / 0.2) 0 1px, transparent 1px 3px);
+  pointer-events: none;
+}
+
+.tv-static {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: #6f6a66
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='s'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23s)'/%3E%3C/svg%3E")
+    0 0 / 160px;
+  animation: tv-static 0.45s steps(6) both;
+  pointer-events: none;
+}
+
+.tv-side {
+  display: grid;
+  justify-items: center;
+  gap: calc(var(--set) * 0.03);
+}
+
+.tv-knob {
+  position: relative;
+  width: calc(var(--set) * 0.075);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #4a3a30, #2a201a 60%, #16110d);
+  box-shadow:
+    0 3px 6px rgb(0 0 0 / 0.5),
+    inset 0 1px 1px rgb(255 255 255 / 0.12);
+  transition: rotate 0.4s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+.tv-knob--channel {
+  width: calc(var(--set) * 0.11);
+}
+
+.tv-knob--channel::after {
+  content: '';
+  position: absolute;
+  top: 8%;
+  left: 50%;
+  width: 8%;
+  height: 34%;
+  border-radius: 2px;
+  background: var(--cream);
+  translate: -50% 0;
+}
+
+.tv-grille {
+  width: 100%;
+  height: calc(var(--set) * 0.16);
+  background: repeating-linear-gradient(180deg, #3d2b1f 0 calc(var(--set) * 0.011), transparent 0 calc(var(--set) * 0.023));
+}
+
+.tv-badge {
+  padding: 0.25em 0.6em 0.1em;
+  border: 1px solid #b8955e;
+  background: #141010;
+  color: #d9b27a;
+  font: 700 calc(var(--set) * 0.03) / 1 var(--font-hand);
+}
+
+/* ---------- Film strip ---------- */
+
+.film {
+  position: relative;
+  padding: clamp(72px, 9vw, 140px) 0;
+  overflow: hidden;
+  background: var(--charcoal);
+  color: var(--cream);
+  --accent: var(--orange);
+}
+
+.film-heading {
+  position: relative;
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+  margin-bottom: clamp(32px, 5vw, 56px);
+  padding: 0 var(--gutter);
+}
+
+.film-title {
+  font-size: clamp(56px, 9vw, 132px);
+}
+
+.film-copy {
+  max-width: 46ch;
+}
+
+.film-title-row {
+  position: relative;
+}
+
+.film-note {
+  position: absolute;
+  top: 2%;
+  left: calc(100% + 10px);
+}
+
+.film-window {
+  overflow: hidden;
+}
+
+.film-reel {
+  display: flex;
+  width: max-content;
+  animation: film-drift 80s linear infinite;
+}
+
+.film-window:hover .film-reel {
+  animation-play-state: paused;
+}
+
+.film-track {
+  display: flex;
+  gap: 14px;
+  padding: 30px 7px;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='12'%3E%3Crect x='8' width='14' height='12' rx='3' fill='%23ede1d3' fill-opacity='.78'/%3E%3C/svg%3E")
+      left 0 top 9px / 30px 12px repeat-x,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='12'%3E%3Crect x='8' width='14' height='12' rx='3' fill='%23ede1d3' fill-opacity='.78'/%3E%3C/svg%3E")
+      left 0 bottom 9px / 30px 12px repeat-x,
+    #120d0a;
+}
+
+.film-frame {
+  position: relative;
+  flex: none;
+  width: clamp(200px, 22vw, 300px);
+  aspect-ratio: 3 / 2;
+  overflow: hidden;
+  border-radius: 3px;
+  background: #1b0f0a;
+}
+
+.film-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: sepia(0.3) saturate(0.75) contrast(0.9) brightness(1.05) blur(0.3px);
+}
+
+/* Grain and a faded wash over every frame. */
+.film-frame::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='.5'/%3E%3C/svg%3E"),
+    linear-gradient(rgb(255 236 214 / 0.1), rgb(255 236 214 / 0.1));
+  mix-blend-mode: overlay;
+  pointer-events: none;
+}
+
+/* An imprinted date stamp, like an old point-and-shoot. */
+.film-edge {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  z-index: 2;
+  color: #ff9a3c;
+  font: 500 10px / 1 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-shadow: 0 0 4px rgb(255 120 40 / 0.7);
+}
+
+/* Frames still developing: blurred light leaks in the lamp colours, slowly coming up. */
+.film-blank {
+  position: absolute;
+  inset: -20%;
+  background:
+    radial-gradient(circle at var(--x) var(--y), var(--leak) 0, transparent 36%),
+    radial-gradient(
+      circle at calc(100% - var(--x)) calc(100% - var(--y)),
+      color-mix(in srgb, var(--leak) 45%, transparent) 0,
+      transparent 30%
+    ),
+    #1b0f0a;
+  opacity: 0.7;
+  filter: blur(14px);
+  animation: develop 7s ease-in-out infinite alternate;
+  animation-delay: calc(var(--i) * -1.4s);
+}
+
+/* ---------- Info: house rules and the room ---------- */
+
+.house {
+  display: grid;
+  place-items: center;
+  padding: clamp(80px, 11vw, 160px) var(--gutter);
+}
+
+.house-card {
+  position: relative;
+  width: min(100%, 680px);
+  padding: clamp(44px, 6vw, 72px) clamp(28px, 5vw, 64px) clamp(44px, 6vw, 72px);
+  background:
+    repeating-linear-gradient(transparent 0 47px, rgb(33 33 33 / 0.07) 47px 48px) 0 34px,
+    var(--cream);
+  color: var(--charcoal);
+  box-shadow:
+    0 34px 60px -26px rgb(0 0 0 / 0.5),
+    0 2px 0 rgb(0 0 0 / 0.05);
+  rotate: -1.4deg;
+}
+
+.house-tape {
+  position: absolute;
+  top: -16px;
+  left: 50%;
+  width: 150px;
+  height: 34px;
+  background: rgb(204 198 186 / 0.78);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.15);
+  translate: -50% 0;
+  rotate: 3deg;
+}
+
+.house-title {
+  color: var(--orange);
+  font-size: clamp(52px, 7vw, 96px);
+}
+
+.house-underline {
+  width: min(72%, 380px);
+  margin: 2px 0 26px;
+  color: var(--orange);
+}
+
+.house-rules {
+  display: grid;
+  gap: 18px;
+}
+
+.house-rules li {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: start;
+  gap: 14px;
+  rotate: var(--tilt);
+}
+
+.house-check {
+  width: 30px;
+  margin-top: 0.15em;
+  color: var(--orange);
+}
+
+.house-rules .hand {
+  font-size: clamp(22px, 2.6vw, 31px);
+  line-height: 1.15;
+  text-transform: none;
+}
+
+.room {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(40px, 6vw, 96px);
+  padding: clamp(80px, 10vw, 150px) var(--gutter);
+}
+
+.room-text {
+  display: grid;
+  justify-items: start;
+  gap: 18px;
+}
+
+.room-title {
+  font-size: clamp(56px, 9vw, 132px);
+}
+
+.room-lines {
+  display: grid;
+  gap: 10px;
+}
+
+.room-lines li {
+  max-width: 48ch;
+  font-size: 14px;
+}
+
+.room-lines li::before {
+  content: '→ ';
+  color: var(--orange);
+}
+
+.room-vinyl {
+  margin-top: 14px;
+  font-size: clamp(28px, 3.4vw, 46px);
+  line-height: 1.1;
+  text-transform: none;
+}
+
+.room-doodles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(16px, 3vw, 44px);
+  color: var(--orange);
+}
+
+.room-doodle {
+  width: 100%;
+  stroke-width: 3.5;
+}
+
+.room-doodle:nth-child(odd) {
+  rotate: -5deg;
+}
+
+.room-doodle:nth-child(even) {
+  rotate: 6deg;
+  translate: 0 18%;
+}
+
+.room-doodle--star {
+  width: 58%;
+  justify-self: center;
+  color: var(--cream);
+}
+
+.info-foot .info-lockup {
+  margin-top: 0;
+}
+
 /* ---------- Small screens ---------- */
 
 @media (max-width: 860px) {
   .intro,
-  .venue {
+  .venue,
+  .room {
     grid-template-columns: 1fr;
+  }
+
+  .hero-note {
+    right: 2%;
+    bottom: 88%;
+    left: auto;
+  }
+
+  .calendar-note,
+  .film-note {
+    display: none;
   }
 
   .footer-main {
@@ -1023,6 +1806,26 @@ html:has(.sheet[open]) {
     grid-template-columns: 1fr;
     gap: 8px;
   }
+
+  .lineup-note {
+    display: none;
+  }
+
+  .casa-tv-controls {
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .tv-button {
+    height: 44px;
+    padding: 0 12px;
+  }
+
+
+  .room-doodles {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    max-width: 420px;
+  }
 }
 
 /* ---------- Motion ---------- */
@@ -1040,9 +1843,90 @@ html:has(.sheet[open]) {
   }
 }
 
+@keyframes lamp-breathe {
+  from {
+    opacity: calc(var(--mood-glow-strength) * 0.45);
+  }
+  to {
+    opacity: calc(var(--mood-glow-strength) * 1.35);
+  }
+}
+
+@keyframes develop {
+  from {
+    opacity: 0.3;
+  }
+  to {
+    opacity: 0.95;
+  }
+}
+
+@keyframes film-drift {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes tv-static {
+  from {
+    opacity: 0.85;
+    background-position: 0 0;
+  }
+  to {
+    opacity: 0;
+    background-position: 60px -90px;
+  }
+}
+
+/* Changing page is changing channel: the picture folds into a line, then the next one opens out of it. */
+::view-transition {
+  background: #120c0a;
+}
+
 ::view-transition-old(root),
 ::view-transition-new(root) {
-  animation-duration: 0.3s;
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(root) {
+  animation: crt-off 0.26s cubic-bezier(0.6, 0, 0.9, 0.5) both;
+}
+
+::view-transition-new(root) {
+  animation: crt-on 0.4s cubic-bezier(0.15, 0.7, 0.3, 1) 0.16s both;
+}
+
+@keyframes crt-off {
+  0% {
+    transform: scale(1, 1);
+    filter: brightness(1);
+  }
+  65% {
+    opacity: 1;
+    transform: scale(1, 0.012);
+    filter: brightness(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.25, 0.004);
+    filter: brightness(1.2);
+  }
+}
+
+@keyframes crt-on {
+  0% {
+    opacity: 0;
+    transform: scale(0.3, 0.004);
+    filter: brightness(1.2);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1, 0.012);
+  }
+  100% {
+    transform: scale(1, 1);
+    filter: brightness(1);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1058,5 +1942,21 @@ html:has(.sheet[open]) {
   ::view-transition-old(*),
   ::view-transition-new(*) {
     animation: none !important;
+  }
+
+  .scribble path {
+    stroke-dashoffset: 0;
+  }
+
+  .film-window {
+    overflow-x: auto;
+  }
+
+  .film-reel {
+    animation: none;
+  }
+
+  .film-track[aria-hidden] {
+    display: none;
   }
 }

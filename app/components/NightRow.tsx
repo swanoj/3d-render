@@ -2,6 +2,7 @@ import { Link } from 'react-router'
 import type { Night } from '../content/types'
 import { clockTime, dateParts } from '../lib/format'
 import { Mark } from './Mark'
+import { Motif } from './Scribble'
 
 const statusLabel: Record<Night['status'], string> = {
   announced: 'Tickets soon',
@@ -26,7 +27,11 @@ export function NightRow({ night }: { night: Night }) {
           <Mark name="circle" className="night-date-circle" />
         </time>
         <span className="night-text">
-          <span className="night-title">{night.title}</span>
+          <span className="night-title-row">
+            <span className="night-title">{night.title}</span>
+            <Motif name={night.motif} className="night-motif" />
+            {night.format === 'vinyl' && <VinylBadge />}
+          </span>
           <span className="night-lineup">{preview}</span>
         </span>
         <span className="night-meta">
@@ -43,5 +48,15 @@ export function NightRow({ night }: { night: Night }) {
         </span>
       </Link>
     </li>
+  )
+}
+
+/** "All vinyl", circled in marker, for the monthly vinyl nights. */
+export function VinylBadge() {
+  return (
+    <span className="vinyl-badge">
+      All vinyl
+      <Mark name="oval" className="vinyl-badge-oval" style={{ aspectRatio: 'auto' }} />
+    </span>
   )
 }

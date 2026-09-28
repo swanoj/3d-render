@@ -67,11 +67,15 @@ export function WordmarkWall({ mood, animate }: WordmarkWallProps) {
       uTileAspect: { value: 1 },
       uRowHeight: { value: 90 },
       uTime: { value: 0 },
+      // Lamps start mid-breath so a frozen (reduced-motion) wall still shows them.
+      uLampTime: { value: 2 },
       uResolution: { value: new Vector2(1, 1) },
       uPointer: { value: new Vector2(0, 0) },
       uLens: { value: 0 },
       uBase: { value: srgb(start.base) },
       uPattern: { value: srgb(start.pattern) },
+      uGlow: { value: srgb(start.glow) },
+      uGlowStrength: { value: start.glowStrength },
       // Fades in once the tile has loaded.
       uOpacity: { value: 0 },
     }
@@ -99,7 +103,13 @@ export function WordmarkWall({ mood, animate }: WordmarkWallProps) {
 
   const target = useMemo(() => {
     const m = moods[mood]
-    return { base: srgb(m.base), pattern: srgb(m.pattern), opacity: m.patternOpacity }
+    return {
+      base: srgb(m.base),
+      pattern: srgb(m.pattern),
+      opacity: m.patternOpacity,
+      glow: srgb(m.glow),
+      glowStrength: m.glowStrength,
+    }
   }, [mood])
 
   // The canvas sits behind the page and receives no events, so follow the pointer on the window.
@@ -138,12 +148,15 @@ export function WordmarkWall({ mood, animate }: WordmarkWallProps) {
 
     let settling = dampVector(u.uBase.value, target.base, 2.6, delta)
     settling = dampVector(u.uPattern.value, target.pattern, 2.6, delta) || settling
+    settling = dampVector(u.uGlow.value, target.glow, 2.6, delta) || settling
+    u.uGlowStrength.value = MathUtils.damp(u.uGlowStrength.value, target.glowStrength, 2.6, delta)
     const opacity = tile ? target.opacity : 0
     u.uOpacity.value = MathUtils.damp(u.uOpacity.value, opacity, 2.6, delta)
     settling ||= Math.abs(u.uOpacity.value - opacity) > 1e-3
 
     if (animate) {
       u.uTime.value += delta
+      u.uLampTime.value += delta
       u.uPointer.value.lerp(pointer.current, 1 - Math.exp(-4 * delta))
       u.uLens.value = MathUtils.damp(u.uLens.value, pointerActive.current ? 1 : 0, 3, delta)
     } else if (settling) {

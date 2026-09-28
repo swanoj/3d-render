@@ -1,18 +1,24 @@
 /**
- * Club Casa's brand, from the Alicyte Design asset set: the palette, the three poster colourways, the venue
- * and the house copy. Everything brand-specific lives here and in app/content/.
+ * Club Casa's brand: the Alicyte Design asset set (palette, logos, type, posters) plus the supporting tones and
+ * room concept from the Prince Bandroom concept deck. Everything brand-specific lives here and in app/content/.
  */
 
-/** The four colours on the palette sheet (sampled from the swatches themselves; two of the printed labels differ). */
+/**
+ * The four colours on the Alicyte palette sheet (sampled from the swatches; two printed labels differ), plus the
+ * concept deck's supporting tones: "dark pink and red", and "subdued green" for the plants.
+ */
 export const palette = {
   orange: '#E95E27',
   charcoal: '#212121',
   stone: '#CCC6BA',
   cream: '#EDE1D3',
+  red: '#AA1F23',
+  pink: '#93304F',
+  green: '#4F5B3A',
 }
 
-/** Poster colourways. Each night has one; the wordmark wall and page colours fade to it. */
-export type MoodId = 'orange' | 'cream' | 'charcoal'
+/** Colourways. Each night has one; the wordmark wall, the lamp glow and the page colours fade to it. */
+export type MoodId = 'orange' | 'cream' | 'charcoal' | 'red' | 'pink'
 
 export interface Mood {
   label: string
@@ -28,6 +34,10 @@ export interface Mood {
   pattern: string
   /** How strongly the wall shows through (0–1). */
   patternOpacity: number
+  /** The warm lamp light that slowly breathes across the wall. */
+  glow: string
+  /** How bright those lamps get (0–1). */
+  glowStrength: number
 }
 
 export const moods: Record<MoodId, Mood> = {
@@ -40,6 +50,8 @@ export const moods: Record<MoodId, Mood> = {
     onAccent: palette.cream,
     pattern: '#D23A1B',
     patternOpacity: 0.55,
+    glow: '#FFB067',
+    glowStrength: 0.34,
   },
   // The cream poster: paper stock with orange type.
   cream: {
@@ -50,6 +62,8 @@ export const moods: Record<MoodId, Mood> = {
     onAccent: palette.charcoal,
     pattern: palette.orange,
     patternOpacity: 0.14,
+    glow: '#F6A25E',
+    glowStrength: 0.12,
   },
   // The charcoal artboard: cream logo on near-black.
   charcoal: {
@@ -60,6 +74,32 @@ export const moods: Record<MoodId, Mood> = {
     onAccent: palette.charcoal,
     pattern: palette.stone,
     patternOpacity: 0.07,
+    glow: palette.orange,
+    glowStrength: 0.3,
+  },
+  // Concept-deck supporting tone: warm, moody red.
+  red: {
+    label: 'Red',
+    base: palette.red,
+    ink: palette.cream,
+    accent: palette.charcoal,
+    onAccent: palette.cream,
+    pattern: '#86151A',
+    patternOpacity: 0.6,
+    glow: '#FF7A45',
+    glowStrength: 0.32,
+  },
+  // Concept-deck supporting tone: dark pink.
+  pink: {
+    label: 'Pink',
+    base: palette.pink,
+    ink: palette.cream,
+    accent: palette.charcoal,
+    onAccent: palette.cream,
+    pattern: '#73223D',
+    patternOpacity: 0.55,
+    glow: '#FF8A5C',
+    glowStrength: 0.3,
   },
 }
 
@@ -91,6 +131,10 @@ export const brand = {
     note: 'Upstairs at the Prince',
     street: '29 Fitzroy Street',
     locality: 'St Kilda VIC 3182',
+    suburb: 'St Kilda',
+    state: 'VIC',
+    postcode: '3182',
+    country: 'AU',
     mapUrl:
       'https://www.google.com/maps/search/?api=1&query=Prince+Bandroom+29+Fitzroy+Street+St+Kilda+VIC+3182',
   },
