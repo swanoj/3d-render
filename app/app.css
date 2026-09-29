@@ -61,6 +61,8 @@
   --font-hand: 'Felt Tip Senior', Kalam, 'Marker Felt', cursive;
   --font-bold: 'Helvetica Neue', Helvetica, Arimo, Arial, sans-serif;
   --font-mono: 'Roboto Mono', ui-monospace, Menlo, monospace;
+  /* The landing page's DJ desk, along the bottom of the screen. */
+  --desk-height: clamp(210px, 30vh, 380px);
 
   --gutter: clamp(16px, 4vw, 56px);
   --header-h: 68px;
@@ -618,6 +620,241 @@ html[data-immersed] .radio-dock {
   }
 }
 
+/* ---------- The DJ desk: the landing page's lower third ---------- */
+
+.dj-desk {
+  position: sticky;
+  bottom: 0;
+  z-index: 12;
+  height: var(--desk-height);
+  border-top: 1px solid rgb(237 225 211 / 0.14);
+  background:
+    radial-gradient(90% 120% at 50% 0%, #3b2519 0%, transparent 62%),
+    linear-gradient(180deg, #1c130f 0%, #0c0807 100%);
+  box-shadow: 0 -18px 44px rgb(0 0 0 / 0.38);
+  color: var(--cream);
+  animation: desk-rise 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  transition: translate 0.55s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Out of the way while the Casa TV room has the screen. */
+.dj-desk[data-away] {
+  translate: 0 calc(100% + 30px);
+}
+
+/* Until the 3D arrives (or without it), a neon sign on the bar. */
+.dj-desk::before {
+  content: 'CLUB CASA';
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #ff8a4c;
+  font: 700 clamp(28px, 4vw, 56px) / 1 var(--font-hand);
+  letter-spacing: 0.04em;
+  text-shadow:
+    0 0 12px rgb(255 84 24 / 0.8),
+    0 0 36px rgb(255 84 24 / 0.5);
+  opacity: 0.8;
+  transition: opacity 0.6s ease;
+}
+
+.dj-desk[data-three]::before {
+  opacity: 0;
+}
+
+.dj-desk-stage {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.8s ease;
+}
+
+.dj-desk[data-three] .dj-desk-stage {
+  opacity: 1;
+}
+
+.dj-desk-pointer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* The note's arrow tip lands on the deck. */
+.dj-desk-note {
+  position: absolute;
+  top: -2.95em;
+  left: -3.15em;
+  color: var(--cream);
+  font-size: 23px;
+  text-shadow: 0 1px 8px rgb(0 0 0 / 0.55);
+}
+
+.dj-desk:not([data-three]) .dj-desk-pointer {
+  display: none;
+}
+
+.dj-desk-controls {
+  position: absolute;
+  bottom: 12px;
+  left: clamp(12px, 2vw, 28px);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 55%;
+}
+
+.dj-desk-play {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 17px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--orange);
+  color: var(--charcoal);
+  font: 700 13px / 1 var(--font-bold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.35);
+}
+
+.dj-desk-play:hover,
+.dj-desk-play:focus-visible {
+  background: #ff7a45;
+}
+
+.dj-desk-now {
+  min-width: 0;
+  margin: 0;
+  padding: 6px 11px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgb(12 9 8 / 0.66);
+  color: rgb(237 225 211 / 0.9);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dj-desk-now .on-air {
+  margin-right: 6px;
+}
+
+/* A zero-width point that the script moves under the crate; the controls centre on it without widening the page. */
+.dj-desk-crate-anchor {
+  position: absolute;
+  bottom: 12px;
+  left: 0;
+  z-index: 2;
+  width: 0;
+}
+
+.dj-desk:not([data-three]) .dj-desk-crate-anchor {
+  right: clamp(12px, 2vw, 28px);
+  left: auto;
+  width: auto;
+}
+
+.dj-desk-crate {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  width: max-content;
+  padding: 3px;
+  border: 1px solid rgb(237 225 211 / 0.16);
+  border-radius: 999px;
+  background: rgb(20 15 12 / 0.86);
+  translate: -50% 0;
+}
+
+.dj-desk:not([data-three]) .dj-desk-crate {
+  translate: none;
+}
+
+.dj-desk-flip {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--cream);
+  font-size: 19px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.dj-desk-flip:hover,
+.dj-desk-flip:focus-visible {
+  background: rgb(237 225 211 / 0.14);
+}
+
+.dj-desk-record {
+  width: 13ch;
+  overflow: hidden;
+  font-size: 11px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dj-desk-spin {
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--cream);
+  color: var(--charcoal);
+  font: 700 11px / 1 var(--font-bold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.dj-desk-spin:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+@keyframes desk-rise {
+  from {
+    translate: 0 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .dj-desk-now {
+    display: none;
+  }
+
+  .dj-desk-play {
+    padding: 9px 13px;
+    font-size: 12px;
+  }
+
+  .dj-desk-note {
+    font-size: 19px;
+  }
+
+  .dj-desk-record {
+    width: 9ch;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dj-desk {
+    animation: none;
+    transition: none;
+  }
+}
+
 /* ---------- Menu sheet ---------- */
 
 .sheet {
@@ -712,7 +949,8 @@ html:has(.sheet[open]) {
   gap: clamp(18px, 3vh, 30px);
   min-height: 100svh;
   margin-top: calc(var(--header-h) * -1);
-  padding: calc(var(--header-h) + 4vh) var(--gutter) 56px;
+  /* The DJ desk rides along the bottom of the landing page: the hero's buttons stay above it. */
+  padding: calc(var(--header-h) + 4vh) var(--gutter) calc(var(--desk-height) + 28px);
   color: var(--fg);
   text-align: center;
 }

@@ -105,6 +105,8 @@ interface TurntableProps {
   /** When the radio last started or stopped (`performance.now()`): the arm's moves are timed from it. */
   since: number
   mix: Mix
+  /** A soft shadow drawn under it, for sitting on the page; off when it stands on something that takes shadows. */
+  pageShadow?: boolean
 }
 
 /**
@@ -112,7 +114,7 @@ interface TurntableProps {
  * needle landing as the music starts; it then creeps inwards as the mix plays. On pause the arm lifts and goes back
  * to its rest, and the platter brakes. Frames are drawn only while something moves.
  */
-export function Turntable({ on, since, mix }: TurntableProps) {
+export function Turntable({ on, since, mix, pageShadow = true }: TurntableProps) {
   const invalidate = useThree((state) => state.invalidate)
   const platter = useRef<Group>(null)
   const swing = useRef<Group>(null)
@@ -185,13 +187,22 @@ export function Turntable({ on, since, mix }: TurntableProps) {
   return (
     <group>
       {/* Its shadow on the page. */}
-      <mesh position={[centreX, -0.0965, centreZ + 0.012]} rotation-x={-Math.PI / 2}>
-        <planeGeometry args={[width * 1.45, depth * 1.6]} />
-        <meshBasicMaterial map={shadow} transparent opacity={0.6} depthWrite={false} />
-      </mesh>
+      {pageShadow && (
+        <mesh position={[centreX, -0.0965, centreZ + 0.012]} rotation-x={-Math.PI / 2}>
+          <planeGeometry args={[width * 1.45, depth * 1.6]} />
+          <meshBasicMaterial map={shadow} transparent opacity={0.6} depthWrite={false} />
+        </mesh>
+      )}
 
       {/* Plinth: a dark body under a brushed aluminium top plate, on four rubber feet. */}
-      <RoundedBox args={[width, 0.07, depth]} radius={0.008} smoothness={4} position={[centreX, -0.041, centreZ]} material={made.body} />
+      <RoundedBox
+        args={[width, 0.07, depth]}
+        radius={0.008}
+        smoothness={4}
+        position={[centreX, -0.041, centreZ]}
+        material={made.body}
+        castShadow
+      />
       <RoundedBox
         args={[width - 0.002, 0.008, depth - 0.002]}
         radius={0.003}
@@ -206,7 +217,7 @@ export function Turntable({ on, since, mix }: TurntableProps) {
         [-0.14, 0.133],
         [0.213, 0.133],
       ].map(([x, z]) => (
-        <mesh key={`${x}${z}`} position={[x, -0.086, z]} material={made.rubber}>
+        <mesh key={`${x}${z}`} position={[x, -0.086, z]} material={made.rubber} castShadow>
           <cylinderGeometry args={[0.032, 0.035, 0.02, 32]} />
         </mesh>
       ))}

@@ -2,6 +2,7 @@ import { Link } from 'react-router'
 import type { Route } from './+types/home'
 import { brand } from '../brand/brand'
 import { CasaTV } from '../components/CasaTV'
+import { DjDesk } from '../components/DjDesk'
 import { Countdown } from '../components/Countdown'
 import { FilmStrip } from '../components/FilmStrip'
 import { Lineup, NextDrop } from '../components/Lineup'
@@ -163,6 +164,9 @@ export default function Home({ loaderData }: Route.ComponentProps) {
           </a>
         </div>
       </section>
+
+      {/* Last on the page and sticky, so it rides along the bottom of the screen and ends above the footer. */}
+      <DjDesk />
     </>
   )
 }
