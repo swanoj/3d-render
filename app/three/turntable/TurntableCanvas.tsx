@@ -1,6 +1,6 @@
 import { Canvas } from '@react-three/fiber'
 import { NeutralToneMapping } from 'three'
-import type { RadioState } from '../../lib/casaSound'
+import type { DeckState } from '../../lib/casaSound'
 import { Studio, Turntable } from './Turntable'
 
 /** Seen from the front and a little to the right, looking down at the platter as you would over a DJ's shoulder. */
@@ -8,10 +8,11 @@ const CAMERA: [number, number, number] = [0.21, 0.71, 0.8]
 const TARGET: [number, number, number] = [0.036, -0.036, 0.018]
 
 /**
- * The radio dock's turntable, drawn into a transparent canvas so it sits on the page with its shadow. Like the room,
- * it renders straight to the screen with no post-processing, and only draws frames while something moves.
+ * The radio dock's turntable (deck 1, Casa Radio's), drawn into a transparent canvas so it sits on the page with
+ * its shadow. Like the room, it renders straight to the screen with no post-processing, and only draws frames
+ * while something moves.
  */
-export default function TurntableCanvas({ radio }: { radio: RadioState }) {
+export default function TurntableCanvas({ deck }: { deck: DeckState }) {
   return (
     <Canvas
       className="turntable-canvas"
@@ -23,7 +24,7 @@ export default function TurntableCanvas({ radio }: { radio: RadioState }) {
       onCreated={({ camera }) => camera.lookAt(...TARGET)}
     >
       <Studio />
-      <Turntable on={radio.on} since={radio.since} mix={radio.mix} />
+      <Turntable deck={deck} index={0} />
     </Canvas>
   )
 }

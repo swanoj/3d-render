@@ -1,3 +1,4 @@
+import type { CanvasTexture } from 'three'
 import { palette } from '../../brand/brand'
 import type { Mix } from '../../content/types'
 import { tinted, type TvAssets } from '../channels'
@@ -178,4 +179,67 @@ export function pageShadowTexture() {
     ctx.shadowColor = 'rgba(0,0,0,0.5)'
     ctx.fillRect(52 - 1000, 64, 152, 128)
   })
+}
+
+/**
+ * What's printed on the top plate, as a transparent overlay the size of the plinth: START·STOP, 33 and 45 by their
+ * buttons, the pitch fader's scale, and the deck's number in Casa orange. Laid out in the plinth's own metres:
+ * `left` and `back` are its corner, `width` and `depth` its size.
+ */
+export function plinthPrintTexture(deck: number | null, plate: { left: number; back: number; width: number; depth: number }) {
+  const scale = 2200
+  const width = Math.round(plate.width * scale)
+  const height = Math.round(plate.depth * scale)
+  return canvasTexture(width, height, (ctx) => {
+    const at = (x: number, z: number) => [(x - plate.left) * scale, (z - plate.back) * scale] as const
+    ctx.fillStyle = 'rgba(28,28,30,0.78)'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    const label = (text: string, x: number, z: number, size: number) => {
+      ctx.font = `600 ${size}px "Roboto Mono", ui-monospace, monospace`
+      ctx.fillText(text, ...at(x, z))
+    }
+    label('START · STOP', -0.155, 0.137, 15)
+    label('33', -0.104, 0.148, 14)
+    label('45', -0.081, 0.148, 14)
+    // The pitch fader's scale, beside its slot: -8 at the back, +8 at the front.
+    label('PITCH', 0.225, -0.008, 13)
+    for (let i = -8; i <= 8; i += 2) {
+      const [x, y] = at(0.2055, 0.07 + (i / 8) * 0.055)
+      ctx.fillRect(x - (i % 4 === 0 ? 14 : 8), y - 1, i % 4 === 0 ? 14 : 8, 2)
+    }
+    label('−8', 0.191, 0.015, 12)
+    label('0', 0.193, 0.07, 12)
+    label('+8', 0.191, 0.125, 12)
+    if (deck !== null) {
+      ctx.fillStyle = palette.orange
+      ctx.font = '700 52px "Helvetica Neue", Helvetica, Arimo, Arial, sans-serif'
+      ctx.fillText(String(deck), ...at(-0.165, -0.14))
+    }
+  })
+}
+
+/** The deck's tempo display: a small dark window of orange digits by the pitch fader. Drawn by `paintTempo`. */
+export function tempoTexture() {
+  return canvasTexture(256, 80, () => {})
+}
+
+/** Shows `bpm` and the pitch fader's `percent` in the tempo display, bright while the platter turns. */
+export function paintTempo(texture: CanvasTexture, bpm: number, percent: number, lit: boolean) {
+  const canvas = texture.image as HTMLCanvasElement
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  ctx.fillStyle = '#0a0706'
+  ctx.fillRect(0, 0, 256, 80)
+  ctx.fillStyle = lit ? '#ff8a4c' : 'rgba(255,138,76,0.45)'
+  ctx.textBaseline = 'middle'
+  ctx.textAlign = 'right'
+  ctx.font = '700 46px "Roboto Mono", ui-monospace, monospace'
+  ctx.fillText(bpm.toFixed(1), 170, 42)
+  ctx.textAlign = 'left'
+  ctx.font = '600 17px "Roboto Mono", ui-monospace, monospace'
+  ctx.fillText('BPM', 180, 28)
+  const sign = percent > 0 ? '+' : percent < 0 ? '−' : '±'
+  ctx.fillText(`${sign}${Math.abs(percent).toFixed(1)}`, 180, 56)
+  texture.needsUpdate = true
 }

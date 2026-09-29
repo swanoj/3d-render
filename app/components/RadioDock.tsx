@@ -1,7 +1,7 @@
 import { lazy, Suspense, useState } from 'react'
 import { useLocation } from 'react-router'
 import { casaSound } from '../lib/casaSound'
-import { useRadio, useReducedMotion, useWebGLSupport } from '../lib/hooks'
+import { useDesk, useRadio, useReducedMotion, useWebGLSupport } from '../lib/hooks'
 import { WebGLBoundary } from './Stages'
 
 // three.js loads with the turntable, the first time the radio plays.
@@ -26,6 +26,7 @@ function PlayIcon({ playing }: { playing: boolean }) {
  */
 export function RadioDock() {
   const radio = useRadio()
+  const [deck] = useDesk()
   const webgl = useWebGLSupport()
   const reducedMotion = useReducedMotion()
   const { pathname } = useLocation()
@@ -46,7 +47,7 @@ export function RadioDock() {
       <div className="radio-dock-deck" aria-hidden onClick={casaSound.toggleRadio}>
         <WebGLBoundary name="turntable">
           <Suspense fallback={null}>
-            <TurntableCanvas radio={radio} />
+            <TurntableCanvas deck={deck} />
           </Suspense>
         </WebGLBoundary>
       </div>
