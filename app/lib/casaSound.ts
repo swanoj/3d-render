@@ -2,11 +2,20 @@ import { mixes } from '../content/radio'
 import type { Mix } from '../content/types'
 import type { ChannelId } from '../three/channels'
 
-/** Casa Radio: the mix selected, and whether it's playing. */
+/** Casa Radio: the mix selected, whether it's playing, and when it last started or stopped (`performance.now()`). */
 export interface RadioState {
   on: boolean
   mix: Mix
+  since: number
 }
+
+/**
+ * Seconds from pressing play to the needle landing: the turntable's arm lifts, swings over the record and lowers.
+ * The music starts as it lands, and the dock's turntable follows the same timing.
+ */
+export const NEEDLE_DROP = 1.1
+/** The endless groove has no end, so the needle crosses the record in 20 minutes and waits at the run-out. */
+const GROOVE_SIDE = 20 * 60
 
 /*
  * Casa TV's sound, made with Web Audio so there are no files to load. The club next door comes through the wall as
@@ -56,8 +65,11 @@ export interface Mixer {
   listen: AnalyserNode
   /** The room's hush, only while you're in the room. */
   hushLevel: GainNode
+  /** Surface noise under Casa Radio, from the needle in the groove. */
+  surface: GainNode
   beds: Record<Bed, GainNode>
   noise: AudioBuffer
+  crackle: AudioBuffer
 }
 
 function filter(ctx: BaseAudioContext, type: BiquadFilterType, frequency: number, q: number) {
@@ -183,7 +195,8 @@ export function createMixer(ctx: BaseAudioContext, output: AudioNode): Mixer {
 
   // Each channel's bed runs all along at zero and is faded up while its channel is on.
   const record = ctx.createBufferSource()
-  record.buffer = buffer(ctx, 1, 5, (data) => crackle(data, ctx.sampleRate))
+  const surfaceNoise = buffer(ctx, 1, 5, (data) => crackle(data, ctx.sampleRate))
+  record.buffer = surfaceNoise
   record.loop = true
   const tone = ctx.createOscillator()
   tone.frequency.value = 1000
@@ -196,6 +209,10 @@ export function createMixer(ctx: BaseAudioContext, output: AudioNode): Mixer {
     bed.connect(tv)
   }
   record.connect(beds.vinyl)
+  // The same crackle, faintly, under Casa Radio while the needle's down.
+  const surface = ctx.createGain()
+  surface.gain.value = 0
+  record.connect(filter(ctx, 'highpass', 700, 0.7)).connect(surface).connect(master)
   tone.connect(beds.test)
   hum.connect(filter(ctx, 'lowpass', 600, 0.7)).connect(beds.cam)
   record.start()
@@ -214,8 +231,10 @@ export function createMixer(ctx: BaseAudioContext, output: AudioNode): Mixer {
     mixIn,
     listen,
     hushLevel,
+    surface,
     beds,
     noise: buffer(ctx, 1, 2, whiteNoise),
+    crackle: surfaceNoise,
   }
 }
 
@@ -319,6 +338,58 @@ function staticBurst(mix: Mixer, time: number) {
   source.stop(time + 0.45)
 }
 
+/** The turntable's cue lever: a soft, damped click as the arm lifts or lowers. */
+function cueLever(mix: Mixer, time: number) {
+  const source = noise(mix)
+  const level = mix.ctx.createGain()
+  pluck(level.gain, time, 0.07, 0.002, 0.04)
+  source.connect(filter(mix.ctx, 'bandpass', 1700, 2.5)).connect(level).connect(mix.master)
+  source.start(time, Math.random())
+  source.stop(time + 0.06)
+}
+
+/**
+ * The needle landing: a soft thud through the plinth, the stylus's tick and a second of lead-in crackle. Returns
+ * the sounds, so a pause before the needle lands can cancel them.
+ */
+function needleDown(mix: Mixer, time: number): AudioScheduledSourceNode[] {
+  const body = mix.ctx.createOscillator()
+  body.frequency.setValueAtTime(72, time)
+  body.frequency.exponentialRampToValueAtTime(38, time + 0.12)
+  const bodyLevel = mix.ctx.createGain()
+  pluck(bodyLevel.gain, time, 0.2, 0.004, 0.16)
+  body.connect(bodyLevel).connect(mix.master)
+  body.start(time)
+  body.stop(time + 0.22)
+
+  const tick = noise(mix)
+  const tickLevel = mix.ctx.createGain()
+  pluck(tickLevel.gain, time, 0.1, 0.001, 0.03)
+  tick.connect(filter(mix.ctx, 'bandpass', 2800, 1.2)).connect(tickLevel).connect(mix.master)
+  tick.start(time, Math.random())
+  tick.stop(time + 0.05)
+
+  const lead = mix.ctx.createBufferSource()
+  lead.buffer = mix.crackle
+  const leadLevel = mix.ctx.createGain()
+  pluck(leadLevel.gain, time, 0.6, 0.01, 1.2)
+  lead.connect(filter(mix.ctx, 'highpass', 900, 0.7)).connect(leadLevel).connect(mix.master)
+  lead.start(time, Math.random() * 3)
+  lead.stop(time + 1.3)
+  return [body, tick, lead]
+}
+
+/** Stops sounds that may not have started yet (or may already have ended, which some browsers object to). */
+function cancel(sounds: AudioScheduledSourceNode[]) {
+  for (const sound of sounds) {
+    try {
+      sound.stop()
+    } catch {
+      // Already over.
+    }
+  }
+}
+
 /** A lamp's pull switch: the click down and the click back. */
 function lampSwitch(mix: Mixer, time: number) {
   for (const [offset, peak] of [
@@ -349,8 +420,11 @@ class CasaSound {
   private sleep = 0
   private listeners = new Set<() => void>()
   /** Casa Radio: what's selected, whether it's playing, and the player for mixes that are audio files. */
-  private station: RadioState = { on: false, mix: mixes[0] }
+  private station: RadioState = { on: false, mix: mixes[0], since: 0 }
   private player: HTMLAudioElement | null = null
+  /** When the needle lands (audio clock): the radio stays quiet until then. */
+  private dropAt = 0
+  private landing: AudioScheduledSourceNode[] = []
   private heard = { slow: 0, beat: 0 }
 
   subscribe = (listener: () => void) => {
@@ -378,29 +452,77 @@ class CasaSound {
   playRadio = (id?: string) => {
     if (typeof AudioContext === 'undefined') return
     const mix = mixes.find((candidate) => candidate.id === id) ?? this.station.mix
-    this.station = { on: true, mix }
+    this.station = { on: true, mix, since: performance.now() }
     this.wake()
+    this.dropNeedle()
     this.refresh()
     this.notify()
   }
 
+  /** Lifts the needle: the music stops at once. */
   pauseRadio = () => {
     if (!this.station.on) return
-    this.station = { ...this.station, on: false }
+    this.station = { ...this.station, on: false, since: performance.now() }
+    if (this.mix && this.context) {
+      // Paused before the needle landed: it never does.
+      if (this.context.currentTime < this.dropAt) {
+        cancel(this.landing)
+        this.dropAt = 0
+      }
+      cueLever(this.mix, this.context.currentTime)
+    }
     this.refresh()
     this.notify()
   }
 
   toggleRadio = () => (this.station.on ? this.pauseRadio() : this.playRadio())
 
-  /** The next mix in the list, looping. */
+  /** The next mix in the list, looping. While playing, the needle comes up and drops on the new record. */
   nextMix = () => {
     const at = mixes.indexOf(this.station.mix)
     const mix = mixes[(at + 1) % mixes.length]
     if (mix === this.station.mix) return
-    this.station = { ...this.station, mix }
+    this.station = this.station.on ? { on: true, mix, since: performance.now() } : { ...this.station, mix }
+    if (this.station.on) this.dropNeedle()
     this.refresh()
     this.notify()
+  }
+
+  /**
+   * How far the needle has crossed the record, 0–1: through the mix's audio file, or for the endless groove,
+   * through a 20-minute side. 0 while the radio's off.
+   */
+  progress = () => {
+    if (!this.station.on) return 0
+    const player = this.player
+    if (this.playingFile() && player && Number.isFinite(player.duration) && player.duration > 0) {
+      return Math.min(1, player.currentTime / player.duration)
+    }
+    const played = (performance.now() - this.station.since) / 1000 - NEEDLE_DROP
+    return Math.min(1, Math.max(0, played / GROOVE_SIDE))
+  }
+
+  /** The arm's journey: the cue lever now, the needle landing `NEEDLE_DROP` seconds later. */
+  private dropNeedle() {
+    const context = this.context
+    const mix = this.mix
+    if (!context || !mix) return
+    const now = context.currentTime
+    this.dropAt = now + NEEDLE_DROP
+    cueLever(mix, now + 0.02)
+    cancel(this.landing)
+    this.landing = needleDown(mix, this.dropAt)
+  }
+
+  /** Sets a radio level: at once, or while the needle's still on its way, silent until it lands. */
+  private radioLevel(param: AudioParam, value: number, now: number, rise: number) {
+    param.cancelScheduledValues(now)
+    if (value > 0 && now < this.dropAt) {
+      param.setTargetAtTime(0, now, 0.02)
+      param.setTargetAtTime(value, this.dropAt, 0.05)
+    } else {
+      param.setTargetAtTime(value, now, value > 0 ? rise : 0.02)
+    }
   }
 
   /** What's on air, for the TV's vinyl channel; null while the radio is off. */
@@ -512,8 +634,9 @@ class CasaSound {
 
     mix.wall.frequency.setTargetAtTime(380 + 320 * this.closeness, now, 0.25)
     mix.wallLevel.gain.setTargetAtTime(room && !this.station.on ? 0.42 + 0.3 * this.closeness : 0, now, 0.25)
-    mix.radio.gain.setTargetAtTime(groove ? 0.55 : 0, now, 0.2)
-    mix.mixIn.gain.setTargetAtTime(file ? 0.9 : 0, now, 0.2)
+    this.radioLevel(mix.radio.gain, groove ? 0.55 : 0, now, 0.2)
+    this.radioLevel(mix.mixIn.gain, file ? 0.9 : 0, now, 0.2)
+    this.radioLevel(mix.surface.gain, groove || file ? 0.035 : 0, now, 0.3)
     mix.hushLevel.gain.setTargetAtTime(room ? 0.05 : 0, now, 0.3)
     mix.master.gain.setTargetAtTime(audible ? MASTER : 0, now, audible ? 0.25 : 0.15)
     this.applyBed(now)

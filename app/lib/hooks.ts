@@ -64,5 +64,5 @@ export function useRadio() {
   return useSyncExternalStore(casaSound.subscribe, casaSound.radio, radioIdle)
 }
 
-const idle: RadioState = { on: false, mix: mixes[0] }
+const idle: RadioState = { on: false, mix: mixes[0], since: 0 }
 const radioIdle = () => idle
