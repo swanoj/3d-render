@@ -1,5 +1,5 @@
 import { mixes } from '../content/radio'
-import type { Mix } from '../content/types'
+import type { GrooveId, Mix } from '../content/types'
 import type { ChannelId } from '../three/channels'
 
 /** Casa Radio: the mix selected, whether it's playing, and when it last started or stopped (`performance.now()`). */
@@ -33,9 +33,14 @@ const LOOKAHEAD = 0.12
 /** Overall level: the groove peaks around -8 dBFS, background rather than foreground. */
 const MASTER = 0.5
 
+interface Bar {
+  bass: number
+  chord: number[]
+}
+
 // A bar each of Am7, Fmaj7, Cmaj7 and G6. The bass sits an octave above sub-bass so laptop and phone speakers
 // still carry it through the wall.
-const PROGRESSION = [
+const PROGRESSION: Bar[] = [
   { bass: 110, chord: [220, 261.63, 329.63, 392] },
   { bass: 87.31, chord: [220, 261.63, 329.63, 349.23] },
   { bass: 130.81, chord: [246.94, 261.63, 329.63, 392] },
@@ -280,15 +285,15 @@ function bass(mix: Mixer, time: number, frequency: number) {
   tone.stop(time + 0.25)
 }
 
-/** An organ chord, short and square. */
-function stab(mix: Mixer, time: number, chord: number[]) {
+/** A chord, short: square for the house organ, sawtooth for disco brass. */
+function stab(mix: Mixer, time: number, chord: number[], wave: OscillatorType = 'square', cutoff = 2000, peak = 0.12) {
   const level = mix.ctx.createGain()
-  pluck(level.gain, time, 0.12, 0.005, 0.3)
-  const low = filter(mix.ctx, 'lowpass', 2000, 1)
+  pluck(level.gain, time, peak, 0.005, 0.3)
+  const low = filter(mix.ctx, 'lowpass', cutoff, 1)
   low.connect(level).connect(mix.music)
   for (const frequency of chord) {
     const tone = mix.ctx.createOscillator()
-    tone.type = 'square'
+    tone.type = wave
     tone.frequency.value = frequency
     tone.detune.value = (Math.random() - 0.5) * 10
     tone.connect(low)
@@ -297,14 +302,149 @@ function stab(mix: Mixer, time: number, chord: number[]) {
   }
 }
 
-/** One sixteenth of the groove: four to the floor, claps on two and four, an off-beat bass and organ stabs. */
-export function playStep(mix: Mixer, step: number, time: number) {
-  const bar = PROGRESSION[Math.floor(step / 16) % PROGRESSION.length]
-  const sixteenth = step % 16
-  if (sixteenth % 4 === 0) kick(mix, time)
-  if (sixteenth === 4 || sixteenth === 12) clap(mix, time)
-  if (sixteenth % 4 === 2) bass(mix, time, bar.bass)
-  if (sixteenth === 3 || sixteenth === 6 || sixteenth === 10) stab(mix, time, bar.chord)
+/** A hi-hat: open rings on, closed is a tick. */
+function hat(mix: Mixer, time: number, open: boolean) {
+  const source = noise(mix)
+  const level = mix.ctx.createGain()
+  pluck(level.gain, time, open ? 0.13 : 0.07, 0.002, open ? 0.16 : 0.035)
+  source.connect(filter(mix.ctx, 'highpass', 7200, 0.7)).connect(level).connect(mix.music)
+  source.start(time, Math.random())
+  source.stop(time + (open ? 0.2 : 0.05))
+}
+
+/** A rimshot's click, for the deep groove. */
+function rim(mix: Mixer, time: number) {
+  const source = noise(mix)
+  const level = mix.ctx.createGain()
+  pluck(level.gain, time, 0.3, 0.001, 0.035)
+  source.connect(filter(mix.ctx, 'bandpass', 3100, 5)).connect(level).connect(mix.music)
+  source.start(time, Math.random())
+  source.stop(time + 0.05)
+}
+
+/** A brushed snare: a soft swish rather than a crack. */
+function brush(mix: Mixer, time: number) {
+  const source = noise(mix)
+  const level = mix.ctx.createGain()
+  pluck(level.gain, time, 0.16, 0.012, 0.22)
+  source.connect(filter(mix.ctx, 'bandpass', 2300, 0.8)).connect(level).connect(mix.music)
+  source.start(time, Math.random())
+  source.stop(time + 0.26)
+}
+
+/** A warm pad that swells and lingers across the bar, for the deep groove. */
+function pad(mix: Mixer, time: number, chord: number[]) {
+  const level = mix.ctx.createGain()
+  level.gain.setValueAtTime(0.0001, time)
+  level.gain.exponentialRampToValueAtTime(0.07, time + 0.35)
+  level.gain.exponentialRampToValueAtTime(0.0001, time + 1.9)
+  const low = filter(mix.ctx, 'lowpass', 1100, 0.7)
+  low.connect(level).connect(mix.music)
+  for (const frequency of chord) {
+    const tone = mix.ctx.createOscillator()
+    tone.type = 'triangle'
+    tone.frequency.value = frequency
+    tone.detune.value = (Math.random() - 0.5) * 14
+    tone.connect(low)
+    tone.start(time)
+    tone.stop(time + 2)
+  }
+}
+
+/** An electric piano chord: sine tones with a bell-like overtone, for Sunday. */
+function keys(mix: Mixer, time: number, chord: number[]) {
+  const level = mix.ctx.createGain()
+  pluck(level.gain, time, 0.09, 0.006, 0.9)
+  level.connect(mix.music)
+  for (const frequency of chord) {
+    for (const [multiple, share] of [
+      [1, 1],
+      [2, 0.18],
+    ] as const) {
+      const tone = mix.ctx.createOscillator()
+      tone.frequency.value = frequency * multiple
+      tone.detune.value = (Math.random() - 0.5) * 6
+      const partial = mix.ctx.createGain()
+      partial.gain.value = share
+      tone.connect(partial).connect(level)
+      tone.start(time)
+      tone.stop(time + 1)
+    }
+  }
+}
+
+interface Groove {
+  progression: Bar[]
+  /** Plays one sixteenth (0–15) of a bar. */
+  play: (mix: Mixer, sixteenth: number, time: number, bar: Bar) => void
+}
+
+/** Every groove shares the tempo, so the lamps and the kick grid never skip when the record changes. */
+const GROOVES: Record<GrooveId, Groove> = {
+  // Four to the floor, claps on two and four, an off-beat bass and organ stabs.
+  house: {
+    progression: PROGRESSION,
+    play(mix, sixteenth, time, bar) {
+      if (sixteenth % 4 === 0) kick(mix, time)
+      if (sixteenth === 4 || sixteenth === 12) clap(mix, time)
+      if (sixteenth % 4 === 2) bass(mix, time, bar.bass)
+      if (sixteenth === 3 || sixteenth === 6 || sixteenth === 10) stab(mix, time, bar.chord)
+    },
+  },
+  // Am9, Dm9, Fmaj7♯11, Em7: rimshots, a syncopated bass and a pad that swells across each bar.
+  deep: {
+    progression: [
+      { bass: 110, chord: [196, 246.94, 261.63, 329.63] },
+      { bass: 146.83, chord: [174.61, 220, 261.63, 329.63] },
+      { bass: 87.31, chord: [220, 261.63, 329.63, 493.88] },
+      { bass: 82.41, chord: [196, 246.94, 293.66, 329.63] },
+    ],
+    play(mix, sixteenth, time, bar) {
+      if (sixteenth % 4 === 0) kick(mix, time)
+      if (sixteenth === 4 || sixteenth === 12) rim(mix, time)
+      if (sixteenth % 2 === 1) hat(mix, time, false)
+      if (sixteenth === 0 || sixteenth === 7 || sixteenth === 10) bass(mix, time, bar.bass)
+      if (sixteenth === 0) pad(mix, time, bar.chord)
+    },
+  },
+  // Fmaj7, Em7, Dm7, Cmaj7: open hats on the off-beat, an octave-jumping bass and brass stabs.
+  disco: {
+    progression: [
+      { bass: 87.31, chord: [220, 261.63, 329.63, 349.23] },
+      { bass: 82.41, chord: [196, 246.94, 293.66, 329.63] },
+      { bass: 73.42, chord: [220, 261.63, 293.66, 349.23] },
+      { bass: 130.81, chord: [196, 246.94, 261.63, 329.63] },
+    ],
+    play(mix, sixteenth, time, bar) {
+      if (sixteenth % 4 === 0) kick(mix, time)
+      if (sixteenth === 4 || sixteenth === 12) clap(mix, time)
+      if (sixteenth % 4 === 2) hat(mix, time, true)
+      if (sixteenth % 2 === 0) bass(mix, time, sixteenth % 4 === 2 ? bar.bass * 2 : bar.bass)
+      if (sixteenth === 2 || sixteenth === 10) stab(mix, time, bar.chord, 'sawtooth', 3200, 0.07)
+    },
+  },
+  // Ebmaj9, Cm9, Fm9, B♭13: a laid-back kick, brushes, a walking bass and electric piano.
+  sunday: {
+    progression: [
+      { bass: 77.78, chord: [196, 233.08, 293.66, 349.23] },
+      { bass: 130.81, chord: [233.08, 293.66, 311.13, 392] },
+      { bass: 87.31, chord: [207.65, 261.63, 311.13, 392] },
+      { bass: 116.54, chord: [207.65, 293.66, 392, 415.3] },
+    ],
+    play(mix, sixteenth, time, bar) {
+      if (sixteenth === 0 || sixteenth === 8 || sixteenth === 10) kick(mix, time)
+      if (sixteenth === 4 || sixteenth === 12) brush(mix, time)
+      if (sixteenth % 2 === 0) hat(mix, time, false)
+      if (sixteenth % 4 === 0) bass(mix, time, bar.bass * [1, 1.5, 2, 1.68][sixteenth / 4])
+      if (sixteenth === 0 || sixteenth === 7) keys(mix, time, bar.chord)
+    },
+  },
+}
+
+/** One sixteenth of a groove (the house groove unless another is named). */
+export function playStep(mix: Mixer, step: number, time: number, groove: GrooveId = 'house') {
+  const { progression, play } = GROOVES[groove]
+  play(mix, step % 16, time, progression[Math.floor(step / 16) % progression.length])
 }
 
 /** The knob's detent: a click and the thud of the knob itself. */
@@ -476,6 +616,16 @@ class CasaSound {
   }
 
   toggleRadio = () => (this.station.on ? this.pauseRadio() : this.playRadio())
+
+  /**
+   * Wakes the audio from a click or tap without playing anything, so a record that starts a moment later (after
+   * its flight to the deck) is allowed to play.
+   */
+  warmUp = () => {
+    if (typeof AudioContext === 'undefined') return
+    this.wake()
+    this.refresh()
+  }
 
   /** The next mix in the list, looping. While playing, the needle comes up and drops on the new record. */
   nextMix = () => {
@@ -724,8 +874,10 @@ class CasaSound {
       this.nextTime += missed * SIXTEENTH
       this.step += missed
     }
+    // The club through the wall plays the house groove; Casa Radio plays its record's.
+    const groove = this.station.on ? (this.station.mix.groove ?? 'house') : 'house'
     while (this.nextTime < context.currentTime + LOOKAHEAD) {
-      playStep(mix, this.step, this.nextTime)
+      playStep(mix, this.step, this.nextTime, groove)
       this.nextTime += SIXTEENTH
       this.step += 1
     }

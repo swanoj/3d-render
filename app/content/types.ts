@@ -73,7 +73,10 @@ export interface Artist {
   mix?: string
 }
 
-/** Something Casa Radio can play. Without a `src` it plays the house groove synthesised in the browser. */
+/** The grooves the browser can play itself, for mixes without an audio file. */
+export type GrooveId = 'house' | 'deep' | 'disco' | 'sunday'
+
+/** Something Casa Radio can play. Without a `src` it plays one of the grooves synthesised in the browser. */
 export interface Mix {
   id: string
   title: string
@@ -85,6 +88,10 @@ export interface Mix {
    * lamps listen to the music, which needs CORS).
    */
   src?: string
+  /** Which synthesised groove plays when there's no `src` (the house groove by default). */
+  groove?: GrooveId
+  /** The sleeve's colourway in the DJ desk's record crate. */
+  sleeve?: MoodId
 }
 
 /** A photo from a night, shown faded and grainy. Keep faces out of frame: the night stays mysterious. */

@@ -1,4 +1,5 @@
 import { lazy, Suspense, useState } from 'react'
+import { useLocation } from 'react-router'
 import { casaSound } from '../lib/casaSound'
 import { useRadio, useReducedMotion, useWebGLSupport } from '../lib/hooks'
 import { WebGLBoundary } from './Stages'
@@ -27,6 +28,7 @@ export function RadioDock() {
   const radio = useRadio()
   const webgl = useWebGLSupport()
   const reducedMotion = useReducedMotion()
+  const { pathname } = useLocation()
   const [open, setOpen] = useState(false)
   // Opens whenever the radio starts playing (state adjusted while rendering, rather than in an effect).
   const [seen, setSeen] = useState(radio.since)
@@ -34,7 +36,8 @@ export function RadioDock() {
     setSeen(radio.since)
     if (radio.on) setOpen(true)
   }
-  if (!open || !webgl || reducedMotion) return null
+  // The landing page has the DJ desk instead.
+  if (!open || !webgl || reducedMotion || pathname === '/') return null
 
   const { on, mix } = radio
   return (
