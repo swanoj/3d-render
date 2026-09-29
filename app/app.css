@@ -823,6 +823,107 @@ html[data-immersed] .radio-dock {
   cursor: default;
 }
 
+/* How to play it, along the top for a few seconds as the camera arrives over the desk. */
+.dj-desk-hint {
+  position: absolute;
+  top: 9px;
+  left: 50%;
+  z-index: 2;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  margin: 0;
+  padding: 4px 11px;
+  border-radius: 999px;
+  background: rgb(12 9 8 / 0.62);
+  color: rgb(237 225 211 / 0.8);
+  font-size: 10.5px;
+  pointer-events: none;
+  opacity: 0;
+  translate: -50% -6px;
+  transition:
+    opacity 0.5s ease,
+    translate 0.5s ease;
+}
+
+.dj-desk[data-three][data-hint] .dj-desk-hint {
+  opacity: 1;
+  translate: -50% 0;
+}
+
+.dj-desk-hint-short {
+  display: none;
+}
+
+@media (max-width: 760px), (pointer: coarse) {
+  .dj-desk-hint-long {
+    display: none;
+  }
+
+  .dj-desk-hint-short {
+    display: inline;
+  }
+}
+
+/* The decks and mixer as form controls for the keyboard: out of sight until one has focus (always, without 3D). */
+.dj-desk-keys {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 8px 14px;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  padding: 8px 12px;
+  border: 1px solid rgb(237 225 211 / 0.16);
+  border-radius: 14px;
+  background: rgb(20 15 12 / 0.94);
+  color: var(--cream);
+  font-size: 11px;
+  translate: -50% 0;
+  clip-path: inset(50%);
+  opacity: 0;
+}
+
+.dj-desk-keys:focus-within,
+.dj-desk:not([data-three]) .dj-desk-keys {
+  clip-path: none;
+  opacity: 1;
+}
+
+.dj-desk-key {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dj-desk-key label,
+label.dj-desk-key {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dj-desk-key input[type='range'] {
+  width: 96px;
+  accent-color: var(--orange);
+}
+
+.dj-desk-key button {
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--cream);
+  color: var(--charcoal);
+  font: 700 11px / 1 var(--font-bold);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
 @keyframes desk-rise {
   from {
     translate: 0 100%;

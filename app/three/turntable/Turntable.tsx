@@ -1,10 +1,11 @@
 import { Environment, Lightformer, RoundedBox } from '@react-three/drei'
-import { useFrame, useThree } from '@react-three/fiber'
+import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   AdditiveBlending,
   CatmullRomCurve3,
   MathUtils,
+  MeshBasicMaterial,
   MeshPhysicalMaterial,
   MeshStandardMaterial,
   TubeGeometry,
@@ -12,29 +13,55 @@ import {
   type Group,
 } from 'three'
 import { palette } from '../../brand/brand'
-import type { Mix } from '../../content/types'
-import { casaSound, NEEDLE_DROP } from '../../lib/casaSound'
+import {
+  BRAKE,
+  casaSound,
+  GROOVE_BPM,
+  NEEDLE_DROP,
+  PITCH_RANGE,
+  SPIN_UP,
+  type Arm,
+  type DeckIndex,
+  type DeckState,
+} from '../../lib/casaSound'
 import { loadTvAssets, type TvAssets } from '../channels'
 import { glowTexture } from '../room/textures'
 import {
   ARM_HEIGHT,
   ARM_LENGTH,
   armPose,
+  grabLift,
+  grooveAt,
   HEADSHELL_OFFSET,
   LIFT_ANGLE,
+  lowerPose,
+  pageTime,
   PIVOT,
+  RECORD_RADIUS,
   RECORD_TOP,
   REST,
+  SWING_MAX,
+  SWING_MIN,
   trackSwing,
   type Pose,
 } from './arm'
-import { pageShadowTexture, recordLabelTexture, strobeTexture, vinylMaps } from './textures'
+import { grab, pointerOn, release } from './drag'
+import { pageShadowTexture, paintTempo, plinthPrintTexture, recordLabelTexture, strobeTexture, tempoTexture, vinylMaps } from './textures'
 
 /** 33⅓ revolutions a minute, in radians a second. */
 const SPEED = ((100 / 3) * Math.PI * 2) / 60
 const PLINTH = { width: 0.453, depth: 0.353, centreX: 0.0365, centreZ: 0.0065 }
 const PLATTER = 0.166
-const RECORD = 0.151
+/** The pitch fader: the middle of its slot, and how far the knob travels either way (to ±8%). */
+const PITCH = { x: 0.225, z: 0.07, travel: 0.055 }
+const START = { x: -0.155, z: 0.158 }
+const SPEEDS = [
+  { rpm: 33, x: -0.104 },
+  { rpm: 45, x: -0.081 },
+] as const
+
+/** An angle wrapped into -π…π, for following a pointer round and round. */
+const wrap = (angle: number) => Math.atan2(Math.sin(angle), Math.cos(angle))
 
 /**
  * A soft studio for the metal and the vinyl to reflect: a warm overhead softbox, a fill from the left, a bright
@@ -97,31 +124,85 @@ function materials() {
     blackMetal: new MeshPhysicalMaterial({ color: '#1b1b1e', metalness: 0.7, roughness: 0.32 }),
     cartridge: new MeshPhysicalMaterial({ color: palette.orange, roughness: 0.32, clearcoat: 0.8, clearcoatRoughness: 0.2 }),
     edge: new MeshStandardMaterial({ color: '#0e0e0f', roughness: 0.3 }),
+    lit: new MeshBasicMaterial({ color: '#ff8a4c', toneMapped: false }),
   }
 }
 
-interface TurntableProps {
-  on: boolean
-  /** When the radio last started or stopped (`performance.now()`): the arm's moves are timed from it. */
+interface Motion {
+  /** The platter's angle and speed (radians, radians a second). */
+  angle: number
+  speed: number
+  /** The record's, which slips on the mat under the DJ's hand. */
+  record: number
+  recordSpeed: number
+  pose: Pose
+  from: Pose
+  /** The arm's state the current move heads for, and when that move began. */
+  arm: Arm
   since: number
-  mix: Mix
+  /** Where the DJ's holding the arm, and where the pointer last was on the plinth. */
+  held: number
+  grip: { x: number; z: number }
+  /** The DJ's hand on the record: where they've turned it to, the pointer's last bearing from the spindle. */
+  hand: { target: number; bearing: number; moved: number; at: number } | null
+  /** Just let go of the record: the music follows it back up to speed. */
+  letGo: boolean
+  /** The start/stop button going down (1) and back up (0). */
+  pressed: number
+}
+
+type Dragged = 'arm' | 'record' | 'pitch'
+type Part = Dragged | 'button' | 'deck'
+
+interface TurntableProps {
+  deck: DeckState
+  /** Which deck it is, for its speed, its needle and its controls. */
+  index: DeckIndex
   /** A soft shadow drawn under it, for sitting on the page; off when it stands on something that takes shadows. */
   pageShadow?: boolean
+  /**
+   * On the DJ desk it can be played: the arm lifts off and drops where it's put, the record scratches under the
+   * pointer, and the start/stop, 33/45 and pitch fader work. A tap elsewhere on it calls `onTap`.
+   */
+  playable?: boolean
+  onTap?: () => void
 }
 
 /**
- * Casa Radio's turntable. On play the platter spins up and the arm lifts, swings over the record and lowers, the
- * needle landing as the music starts; it then creeps inwards as the mix plays. On pause the arm lifts and goes back
+ * A club turntable. On play the platter spins up and the arm lifts, swings over the record and lowers, the needle
+ * landing as the music starts; it then creeps inwards as the record plays. On pause the arm lifts and goes back
  * to its rest, and the platter brakes. Frames are drawn only while something moves.
  */
-export function Turntable({ on, since, mix, pageShadow = true }: TurntableProps) {
+export function Turntable({ deck, index, pageShadow = true, playable = false, onTap }: TurntableProps) {
   const invalidate = useThree((state) => state.invalidate)
+  const root = useRef<Group>(null)
   const platter = useRef<Group>(null)
+  const vinylSide = useRef<Group>(null)
   const swing = useRef<Group>(null)
   const pitch = useRef<Group>(null)
   const lever = useRef<Group>(null)
-  const motion = useRef({ angle: 0, speed: 0, pose: { swing: REST, lift: 0 } as Pose, from: { swing: REST, lift: 0 } as Pose, since: -1 })
+  const slider = useRef<Group>(null)
+  const button = useRef<Group>(null)
+  const zero = useRef<MeshBasicMaterial>(null)
+  const motion = useRef<Motion>({
+    angle: 0,
+    speed: 0,
+    record: 0,
+    recordSpeed: 0,
+    pose: { swing: REST, lift: 0 },
+    from: { swing: REST, lift: 0 },
+    arm: deck.arm,
+    since: deck.since,
+    held: REST,
+    grip: { x: 0, z: 0 },
+    hand: null,
+    letGo: false,
+    pressed: 0,
+  })
+  const drag = useRef<{ part: Dragged; pointer: number } | null>(null)
   const [assets, setAssets] = useState<TvAssets | null>(null)
+  const [hover, setHover] = useState<Part | null>(null)
+  const [grabbing, setGrabbing] = useState(false)
 
   useEffect(() => {
     let live = true
@@ -132,6 +213,16 @@ export function Turntable({ on, since, mix, pageShadow = true }: TurntableProps)
       live = false
     }
   }, [])
+
+  // The pointer shows what a part does: a hand for what's dragged, a finger for what's pressed.
+  const cursor = grabbing ? 'grabbing' : hover === 'arm' || hover === 'record' || hover === 'pitch' ? 'grab' : hover ? 'pointer' : null
+  useEffect(() => {
+    if (!cursor) return
+    document.body.style.cursor = cursor
+    return () => {
+      document.body.style.cursor = 'auto'
+    }
+  }, [cursor])
 
   const made = useMemo(() => materials(), [])
   const tube = useMemo(() => armTube(), [])
@@ -150,42 +241,225 @@ export function Turntable({ on, since, mix, pageShadow = true }: TurntableProps)
   const strobe = useMemo(() => new MeshPhysicalMaterial({ map: strobeTexture(), metalness: 1, roughness: 0.3 }), [])
   const shadow = useMemo(() => pageShadowTexture(), [])
   const halo = useMemo(() => glowTexture(), [])
-  const label = useMemo(() => recordLabelTexture(mix, assets), [mix, assets])
+  const print = useMemo(() => {
+    const { width, depth, centreX, centreZ } = PLINTH
+    const plate = { left: centreX - width / 2, back: centreZ - depth / 2, width, depth }
+    return plinthPrintTexture(playable ? index + 1 : null, plate)
+  }, [playable, index])
+  const label = useMemo(() => (deck.record ? recordLabelTexture(deck.record, assets) : null), [deck.record, assets])
+  const tempo = useMemo(() => (playable ? tempoTexture() : null), [playable])
+  const shownTempo = useRef('')
 
-  useEffect(() => () => label.dispose(), [label])
+  useEffect(() => () => label?.dispose(), [label])
+  useEffect(() => () => print.dispose(), [print])
+  useEffect(() => () => tempo?.dispose(), [tempo])
   useEffect(() => {
     invalidate()
-  }, [on, since, label, invalidate])
+  }, [deck, label, invalidate])
+
+  // The parts the DJ plays by dragging: where the pointer is on them, and what it does as it moves.
+  const hit = useMemo(() => new Vector3(), [])
+  const pointer = (event: ThreeEvent<PointerEvent>, height: number) =>
+    root.current ? pointerOn(event, root.current, height, hit) : null
+
+  const slidePitch = (event: ThreeEvent<PointerEvent>) => {
+    const point = pointer(event, 0.004)
+    if (!point) return
+    const value = (point.z - PITCH.z) / PITCH.travel
+    // A detent in the middle, as on the real fader.
+    casaSound.setPitch(index, Math.abs(value) < 0.07 ? 0 : value)
+  }
+
+  /** The DJ takes hold of a part; false if the pointer isn't really on it. */
+  const take = (part: Dragged, event: ThreeEvent<PointerEvent>) => {
+    const m = motion.current
+    if (part === 'pitch') {
+      slidePitch(event)
+      return true
+    }
+    const point = pointer(event, part === 'arm' ? ARM_HEIGHT : RECORD_TOP)
+    if (!point) return false
+    if (part === 'arm') {
+      m.held = m.pose.swing
+      m.grip = { x: point.x, z: point.z }
+      casaSound.holdArm(index)
+    } else {
+      m.hand = { target: m.record, bearing: Math.atan2(point.x, point.z), moved: 0, at: event.timeStamp }
+    }
+    return true
+  }
+
+  const move = (part: Dragged, event: ThreeEvent<PointerEvent>) => {
+    const m = motion.current
+    if (part === 'pitch') return slidePitch(event)
+    const point = pointer(event, part === 'arm' ? ARM_HEIGHT : RECORD_TOP)
+    if (!point) return
+    if (part === 'arm') {
+      // As if the DJ's fingers were on the headshell wherever they took hold: the pointer's move along its arc.
+      const dx = point.x - m.grip.x
+      const dz = point.z - m.grip.z
+      m.grip = { x: point.x, z: point.z }
+      const along = dx * Math.cos(m.held) - dz * Math.sin(m.held)
+      m.held = MathUtils.clamp(m.held + along / ARM_LENGTH, SWING_MIN, SWING_MAX)
+    } else if (m.hand) {
+      const bearing = Math.atan2(point.x, point.z)
+      const change = wrap(bearing - m.hand.bearing)
+      m.hand.bearing = bearing
+      // The record plays clockwise, which takes the bearing down.
+      m.hand.target -= change
+      m.hand.moved += Math.abs(change)
+    }
+  }
+
+  const letGo = (part: Dragged, event: ThreeEvent<PointerEvent>) => {
+    const m = motion.current
+    if (part === 'arm') {
+      // Over the grooves the needle goes down there; anywhere else the arm goes home.
+      const progress = grooveAt(m.held)
+      if (progress === null) casaSound.pause(index)
+      else casaSound.dropArm(index, progress)
+    } else if (part === 'record') {
+      const hand = m.hand
+      m.hand = null
+      m.letGo = true
+      // A tap, rather than a spin, plays or stops the deck.
+      if (hand && hand.moved < 0.05 && event.timeStamp - hand.at < 350) onTap?.()
+    }
+  }
+
+  const dragAs = (part: Dragged) => {
+    const end = (event: ThreeEvent<PointerEvent>) => {
+      if (drag.current?.part !== part || drag.current.pointer !== event.pointerId) return
+      drag.current = null
+      release(event)
+      setGrabbing(false)
+      letGo(part, event)
+      invalidate()
+    }
+    return {
+      onPointerDown(event: ThreeEvent<PointerEvent>) {
+        if (event.button > 0 || drag.current || !take(part, event)) return
+        grab(event)
+        drag.current = { part, pointer: event.pointerId }
+        setGrabbing(true)
+        invalidate()
+      },
+      onPointerMove(event: ThreeEvent<PointerEvent>) {
+        if (drag.current?.part !== part || drag.current.pointer !== event.pointerId) return
+        event.stopPropagation()
+        move(part, event)
+        invalidate()
+      },
+      onPointerUp: end,
+      onPointerCancel: end,
+      onLostPointerCapture: end,
+      // Its own press isn't a tap on the deck.
+      onClick(event: ThreeEvent<MouseEvent>) {
+        event.stopPropagation()
+      },
+    }
+  }
+
+  const hoverAs = (part: Part) => ({
+    onPointerOver(event: ThreeEvent<PointerEvent>) {
+      event.stopPropagation()
+      setHover(part)
+    },
+    onPointerOut() {
+      setHover((current) => (current === part ? null : current))
+    },
+  })
+  const press = (action: () => void) => (event: ThreeEvent<MouseEvent>) => {
+    event.stopPropagation()
+    motion.current.pressed = 1
+    action()
+    invalidate()
+  }
 
   useFrame((state, delta) => {
     const m = motion.current
     const dt = Math.min(delta, 0.05)
+    const now = pageTime()
     // A new move starts from wherever the arm is now.
-    if (m.since !== since) {
+    if (m.arm !== deck.arm) {
       m.from = { ...m.pose }
-      m.since = since
+      m.arm = deck.arm
+      m.since = deck.since
     }
-    const elapsed = (performance.now() - since) / 1000
-    m.pose = armPose(elapsed, m.from, on ? trackSwing(casaSound.progress()) : REST)
+    const elapsed = (now - m.since) / 1000
+    const arm = deck.arm
+    if (arm.at === 'held') m.pose = { swing: m.held, lift: grabLift(elapsed, m.from) }
+    else if (arm.at === 'record') {
+      const to = trackSwing(casaSound.deckProgress(index))
+      m.pose = arm.move === 'lower' ? lowerPose(elapsed, m.from, to) : armPose(elapsed, m.from, to)
+    } else m.pose = armPose(elapsed, m.from, REST)
 
-    // Up to speed in under a second; on stop, the brake once the arm has lifted.
-    const turning = on || elapsed < 0.2
-    m.speed = MathUtils.damp(m.speed, turning ? SPEED : 0, turning ? 3.2 : 2.4, dt)
-    if (!turning && m.speed < 0.01) m.speed = 0
+    // The platter comes up to speed like the motor, and brakes to a stop.
+    const nominal = SPEED * casaSound.speed(index)
+    const target = deck.motor ? nominal : 0
+    const step = (deck.motor ? SPEED / SPIN_UP : SPEED / BRAKE) * dt
+    m.speed = m.speed < target ? Math.min(target, m.speed + step) : Math.max(target, m.speed - step)
     m.angle = (m.angle + m.speed * dt) % (Math.PI * 2)
 
+    // The record turns with the platter, unless the DJ's hand is on it; let go, and the mat takes it back up to speed.
+    if (m.hand) {
+      const before = m.record
+      m.record += (m.hand.target - m.record) * Math.min(1, dt * 40)
+      m.recordSpeed = (m.record - before) / Math.max(dt, 1e-3)
+      casaSound.scratch(index, m.recordSpeed / nominal)
+    } else {
+      m.recordSpeed = MathUtils.damp(m.recordSpeed, m.speed, 16, dt)
+      m.record += m.recordSpeed * dt
+      if (m.letGo) {
+        const caughtUp = Math.abs(m.recordSpeed - m.speed) < 0.02
+        casaSound.scratch(index, caughtUp ? null : m.recordSpeed / nominal)
+        if (caughtUp) m.letGo = false
+      }
+    }
+    m.pressed = Math.max(0, m.pressed - dt * 7)
+    const pitchNow = casaSound.controls().pitch[index]
+
     if (platter.current) platter.current.rotation.y = -m.angle
+    if (vinylSide.current) vinylSide.current.rotation.y = -m.record
     if (swing.current) swing.current.rotation.y = m.pose.swing
     if (pitch.current) pitch.current.rotation.x = -m.pose.lift * LIFT_ANGLE
     if (lever.current) lever.current.rotation.x = -0.45 * m.pose.lift
+    if (slider.current) slider.current.position.z = PITCH.z + pitchNow * PITCH.travel
+    if (button.current) button.current.position.y = -0.0016 * Math.sin(m.pressed * Math.PI)
+    if (zero.current) zero.current.color.set(pitchNow === 0 ? '#63ff86' : '#123019')
+    if (tempo) {
+      const bpm = GROOVE_BPM * casaSound.speed(index)
+      const percent = pitchNow * PITCH_RANGE * 100
+      const shown = `${bpm.toFixed(1)} ${percent.toFixed(1)} ${deck.motor}`
+      if (shown !== shownTempo.current) {
+        shownTempo.current = shown
+        paintTempo(tempo, bpm, percent, deck.motor)
+      }
+    }
 
-    const settled = !on && m.speed === 0 && elapsed > NEEDLE_DROP
+    const moving = arm.at === 'held' || elapsed < NEEDLE_DROP + 0.1 || m.hand || m.letGo || m.pressed > 0
+    const settled = !moving && !deck.motor && m.speed === 0 && Math.abs(m.recordSpeed) < 0.001
     if (!settled) state.invalidate()
   })
 
   const { width, depth, centreX, centreZ } = PLINTH
   return (
-    <group>
+    <group
+      ref={root}
+      {...(playable && {
+        onClick(event: ThreeEvent<MouseEvent>) {
+          event.stopPropagation()
+          if (event.delta < 6) onTap?.()
+        },
+        // Anywhere on it that isn't a control is a tap to play or stop.
+        onPointerMove() {
+          if (hover === null && onTap) setHover('deck')
+        },
+        onPointerOut() {
+          setHover(null)
+        },
+      })}
+    >
       {/* Its shadow on the page. */}
       {pageShadow && (
         <mesh position={[centreX, -0.0965, centreZ + 0.012]} rotation-x={-Math.PI / 2}>
@@ -194,7 +468,7 @@ export function Turntable({ on, since, mix, pageShadow = true }: TurntableProps)
         </mesh>
       )}
 
-      {/* Plinth: a dark body under a brushed aluminium top plate, on four rubber feet. */}
+      {/* Plinth: a dark body under a brushed aluminium top plate, on four rubber feet, with its printing on top. */}
       <RoundedBox
         args={[width, 0.07, depth]}
         radius={0.008}
@@ -211,6 +485,10 @@ export function Turntable({ on, since, mix, pageShadow = true }: TurntableProps)
         material={made.brushed}
         receiveShadow
       />
+      <mesh position={[centreX, 0.0003, centreZ]} rotation-x={-Math.PI / 2}>
+        <planeGeometry args={[width, depth]} />
+        <meshBasicMaterial map={print} transparent depthWrite={false} />
+      </mesh>
       {[
         [-0.14, -0.12],
         [0.213, -0.12],
@@ -222,21 +500,63 @@ export function Turntable({ on, since, mix, pageShadow = true }: TurntableProps)
         </mesh>
       ))}
 
-      {/* Controls: start/stop, the speed buttons and the pitch slider. */}
-      <mesh position={[-0.155, 0.002, 0.158]} material={made.chrome} castShadow>
-        <boxGeometry args={[0.046, 0.005, 0.03]} />
-      </mesh>
-      {[-0.104, -0.081].map((x) => (
-        <mesh key={x} position={[x, 0.0015, 0.163]} material={made.blackMetal}>
-          <boxGeometry args={[0.018, 0.004, 0.012]} />
-        </mesh>
+      {/* Start/stop. */}
+      <group position={[START.x, 0.002, START.z]}>
+        <group ref={button}>
+          <mesh material={made.chrome} castShadow>
+            <boxGeometry args={[0.046, 0.005, 0.03]} />
+          </mesh>
+        </group>
+        {playable && (
+          <mesh visible={false} onClick={press(() => casaSound.toggleMotor(index))} {...hoverAs('button')}>
+            <boxGeometry args={[0.062, 0.014, 0.044]} />
+          </mesh>
+        )}
+      </group>
+      {/* 33 and 45, the one in use lit. */}
+      {SPEEDS.map(({ rpm, x }) => (
+        <group key={rpm} position={[x, 0.0015, 0.163]}>
+          <mesh material={made.blackMetal}>
+            <boxGeometry args={[0.018, 0.004, 0.012]} />
+          </mesh>
+          <mesh position={[0, 0.0021, 0]} material={deck.rpm === rpm ? made.lit : made.blackMetal}>
+            <boxGeometry args={[0.012, 0.0004, 0.002]} />
+          </mesh>
+          {playable && (
+            <mesh visible={false} onClick={press(() => casaSound.setRpm(index, rpm))} {...hoverAs('button')}>
+              <boxGeometry args={[0.022, 0.014, 0.03]} />
+            </mesh>
+          )}
+        </group>
       ))}
-      <mesh position={[0.225, 0.0004, 0.07]} material={made.rubber}>
+      {/* The pitch fader, and the green light that shows it's dead centre. */}
+      <mesh position={[PITCH.x, 0.0004, PITCH.z]} material={made.rubber}>
         <boxGeometry args={[0.012, 0.0012, 0.13]} />
       </mesh>
-      <mesh position={[0.225, 0.004, 0.078]} material={made.blackMetal} castShadow>
-        <boxGeometry args={[0.03, 0.008, 0.014]} />
+      <group ref={slider} position={[PITCH.x, 0.004, PITCH.z]}>
+        <mesh material={made.blackMetal} castShadow>
+          <boxGeometry args={[0.03, 0.008, 0.014]} />
+        </mesh>
+        <mesh position={[0, 0.0041, 0]} material={made.chrome}>
+          <boxGeometry args={[0.028, 0.0004, 0.0016]} />
+        </mesh>
+      </group>
+      <mesh position={[PITCH.x + 0.021, 0.0012, PITCH.z]}>
+        <cylinderGeometry args={[0.0022, 0.0022, 0.002, 16]} />
+        <meshBasicMaterial ref={zero} color="#63ff86" toneMapped={false} />
       </mesh>
+      {/* The tempo display: the record's BPM and the pitch fader's percentage. */}
+      {tempo && (
+        <mesh position={[0.155, 0.0006, 0.163]} rotation-x={-Math.PI / 2}>
+          <planeGeometry args={[0.072, 0.0225]} />
+          <meshBasicMaterial map={tempo} toneMapped={false} />
+        </mesh>
+      )}
+      {playable && (
+        <mesh visible={false} position={[PITCH.x, 0.006, PITCH.z]} {...dragAs('pitch')} {...hoverAs('pitch')}>
+          <boxGeometry args={[0.046, 0.014, 0.15]} />
+        </mesh>
+      )}
 
       {/* The strobe light by the platter's edge, glowing Casa orange on the dots. */}
       <mesh position={[-0.148, 0.004, 0.11]} rotation-y={0.8}>
@@ -248,7 +568,7 @@ export function Turntable({ on, since, mix, pageShadow = true }: TurntableProps)
       </sprite>
       <pointLight position={[-0.14, 0.012, 0.1]} color="#ff6a2a" intensity={0.08} distance={0.14} decay={2} />
 
-      {/* Platter, mat and record turn together. */}
+      {/* The platter and its mat; the record sits on top and turns with them, or slips under the DJ's hand. */}
       <group ref={platter}>
         <mesh position={[0, 0.01, 0]} material={strobe}>
           <cylinderGeometry args={[PLATTER, PLATTER, 0.012, 128, 1, true]} />
@@ -256,16 +576,20 @@ export function Turntable({ on, since, mix, pageShadow = true }: TurntableProps)
         <mesh position={[0, 0.016, 0]} rotation-x={-Math.PI / 2} material={made.rubber} receiveShadow>
           <circleGeometry args={[PLATTER, 96]} />
         </mesh>
+      </group>
+      <group ref={vinylSide} visible={Boolean(deck.record)} {...(playable && deck.record ? { ...dragAs('record'), ...hoverAs('record') } : {})}>
         <mesh position={[0, RECORD_TOP - 0.0009, 0]} material={made.edge}>
-          <cylinderGeometry args={[RECORD, RECORD, 0.0018, 128, 1, true]} />
+          <cylinderGeometry args={[RECORD_RADIUS, RECORD_RADIUS, 0.0018, 128, 1, true]} />
         </mesh>
         <mesh position={[0, RECORD_TOP, 0]} rotation-x={-Math.PI / 2} material={vinyl} receiveShadow>
-          <circleGeometry args={[RECORD, 160]} />
+          <circleGeometry args={[RECORD_RADIUS, 160]} />
         </mesh>
-        <mesh position={[0, RECORD_TOP + 0.0002, 0]} rotation-x={-Math.PI / 2} receiveShadow>
-          <circleGeometry args={[0.05, 64]} />
-          <meshStandardMaterial map={label} roughness={0.7} />
-        </mesh>
+        {label && (
+          <mesh position={[0, RECORD_TOP + 0.0002, 0]} rotation-x={-Math.PI / 2} receiveShadow>
+            <circleGeometry args={[0.05, 64]} />
+            <meshStandardMaterial map={label} roughness={0.7} />
+          </mesh>
+        )}
       </group>
       <mesh position={[0, 0.023, 0]} material={made.chrome} castShadow>
         <cylinderGeometry args={[0.0036, 0.0036, 0.014, 24]} />
@@ -345,6 +669,12 @@ export function Turntable({ on, since, mix, pageShadow = true }: TurntableProps)
               <coneGeometry args={[0.0009, 0.004, 12]} />
             </mesh>
           </group>
+          {/* Somewhere generous to take hold of it, from the counterweight to the headshell. */}
+          {playable && (
+            <mesh visible={false} position={[0.012, 0.004, 0.075]} {...dragAs('arm')} {...hoverAs('arm')}>
+              <boxGeometry args={[0.052, 0.032, 0.33]} />
+            </mesh>
+          )}
         </group>
       </group>
     </group>

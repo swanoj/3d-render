@@ -1,6 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { mixes } from '../content/radio'
-import { casaSound, type RadioState } from './casaSound'
+import { casaSound, IDLE_CONTROLS, IDLE_DESK, type RadioState } from './casaSound'
 
 const noopSubscribe = () => () => {}
 
@@ -66,3 +66,17 @@ export function useRadio() {
 
 const idle: RadioState = { on: false, mix: mixes[0], since: 0 }
 const radioIdle = () => idle
+
+/** Both turntables on the DJ desk: their records, platters and arms. Stopped on the server. */
+export function useDesk() {
+  return useSyncExternalStore(casaSound.subscribe, casaSound.desk, deskIdle)
+}
+
+const deskIdle = () => IDLE_DESK
+
+/** The desk's pitch faders, channel faders, crossfader and EQ, for the controls that show them. */
+export function useDeskControls() {
+  return useSyncExternalStore(casaSound.subscribeControls, casaSound.controls, controlsIdle)
+}
+
+const controlsIdle = () => IDLE_CONTROLS

@@ -8,7 +8,8 @@ import { canvasTexture, walnutTexture, wallpaperTexture } from '../room/textures
 import { seconds } from './layout'
 import { neonGlowTexture, neonTubeTexture } from './textures'
 
-const DESK = { length: 3.6, depth: 0.95, thickness: 0.045, z: 0.05 }
+/** The desk runs back to the wall, so looking down there's desk all the way. */
+const DESK = { length: 3.6, depth: 1.15, thickness: 0.045, z: -0.05 }
 const WALL_Z = -0.62
 
 /**

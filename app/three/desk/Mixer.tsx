@@ -1,6 +1,6 @@
 import { RoundedBox } from '@react-three/drei'
-import { useFrame } from '@react-three/fiber'
-import { useLayoutEffect, useMemo, useRef } from 'react'
+import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   Color,
   MathUtils,
@@ -8,36 +8,69 @@ import {
   MeshPhysicalMaterial,
   MeshStandardMaterial,
   Object3D,
+  Vector3,
   type Group,
   type InstancedMesh,
 } from 'three'
 import { palette } from '../../brand/brand'
-import { casaSound } from '../../lib/casaSound'
+import { casaSound, type DeckIndex, type Eq } from '../../lib/casaSound'
 import { knurlTexture } from '../room/textures'
+import { grab, pointerOn, release } from '../turntable/drag'
+import { keepDrawing } from './layout'
 import { faceplateTexture, knobCapTexture } from './textures'
 
 const BODY = { width: 0.3, height: 0.09, depth: 0.36 }
 const TOP = BODY.height
 /** Faceplate coordinates (x across, z towards the front), matching the printed legends. */
-const CHANNELS = [-0.072, 0.072]
-const KNOB_ROWS = [-0.094, -0.055, -0.021, 0.013]
+const CHANNELS = [-0.072, 0.072] as const
+const KNOBS: { band: keyof Eq; z: number }[] = [
+  { band: 'trim', z: -0.094 },
+  { band: 'high', z: -0.055 },
+  { band: 'mid', z: -0.021 },
+  { band: 'low', z: 0.013 },
+]
+/** A channel fader's travel, from all the way up (full) to all the way down (off); and the crossfader's. */
+const FADER = { up: 0.034, down: 0.106 }
+const CROSS = 0.044
 const LEDS = 10
 const LED_COLOURS = Array.from({ length: LEDS }, (_, i) =>
   new Color(i < 6 ? '#3dff6e' : i < 8 ? '#ffc23d' : '#ff3b2f'),
 )
 const LED_OFF = new Color('#1a1b1d')
-// Where each EQ knob is set, so the mixer looks mid-set rather than factory-fresh.
-const SETTINGS = [0.2, -0.4, 0.1, 0.5, -0.1, 0.3, -0.5, 0.15]
+/** A knob turns 135° either way from the middle. */
+const KNOB_TURN = 2.36
+
+/** Something on the mixer that's dragged. */
+type Control =
+  | { kind: 'fader'; key: string; deck: DeckIndex }
+  | { kind: 'cross'; key: string }
+  | { kind: 'knob'; key: string; deck: DeckIndex; band: keyof Eq }
 
 /**
- * A two-channel club mixer between the decks: brushed faceplate, EQ knobs, channel faders, a crossfader leaning
- * to the playing deck and a pair of LED meters dancing to Casa Radio's kick.
+ * A two-channel club mixer between the decks: brushed faceplate, gain and three-band EQ for each channel, channel
+ * faders, a Casa-orange crossfader and a pair of LED meters. Everything on it works: drag the faders, turn a knob
+ * by dragging up or down (double-click puts it back to the middle), and the meters dance to each deck.
  */
-export function Mixer({ position, on }: { position: [number, number, number]; on: boolean }) {
+export function Mixer({ position }: { position: [number, number, number] }) {
+  const invalidate = useThree((state) => state.invalidate)
+  const root = useRef<Group>(null)
   const leds = useRef<InstancedMesh>(null)
   const crossfader = useRef<Group>(null)
   const faders = useRef<(Group | null)[]>([])
-  const level = useRef({ left: 0, right: 0 })
+  const knobs = useRef<(Group | null)[]>([])
+  const level = useRef([0, 0])
+  const drag = useRef<{ key: string; pointer: number; y: number } | null>(null)
+  const [hover, setHover] = useState(false)
+  const [grabbing, setGrabbing] = useState(false)
+
+  const cursor = grabbing ? 'grabbing' : hover ? 'grab' : null
+  useEffect(() => {
+    if (!cursor) return
+    document.body.style.cursor = cursor
+    return () => {
+      document.body.style.cursor = 'auto'
+    }
+  }, [cursor])
 
   const made = useMemo(() => {
     const knurl = knurlTexture()
@@ -53,7 +86,7 @@ export function Mixer({ position, on }: { position: [number, number, number]; on
     }
   }, [])
 
-  // Two columns of LEDs in the meter window.
+  // Two columns of LEDs in the meter window, one for each channel.
   const dummy = useMemo(() => new Object3D(), [])
   useLayoutEffect(() => {
     const mesh = leds.current
@@ -70,32 +103,91 @@ export function Mixer({ position, on }: { position: [number, number, number]; on
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
   }, [dummy])
 
+  // The controls: faders slide under the pointer, knobs turn as it moves up or down the screen.
+  const hit = useMemo(() => new Vector3(), [])
+  const adjust = (control: Control, event: ThreeEvent<PointerEvent>) => {
+    if (control.kind === 'knob') {
+      const held = drag.current
+      const y = event.nativeEvent.clientY
+      const value = casaSound.controls().eq[control.deck][control.band] + ((held?.y ?? y) - y) / 110
+      if (held) held.y = y
+      // A detent in the middle, as on the real knob.
+      casaSound.setEq(control.deck, control.band, Math.abs(value) < 0.04 ? 0 : value)
+      return
+    }
+    const point = root.current ? pointerOn(event, root.current, TOP, hit) : null
+    if (!point) return
+    if (control.kind === 'fader') casaSound.setFader(control.deck, (FADER.down - point.z) / (FADER.down - FADER.up))
+    else casaSound.setCrossfader(point.x / CROSS)
+  }
+  const dragAs = (control: Control) => {
+    const mine = (event: ThreeEvent<PointerEvent>) => drag.current?.key === control.key && drag.current.pointer === event.pointerId
+    const end = (event: ThreeEvent<PointerEvent>) => {
+      if (!mine(event)) return
+      drag.current = null
+      release(event)
+      setGrabbing(false)
+      keepDrawing(400)
+    }
+    return {
+      onPointerDown(event: ThreeEvent<PointerEvent>) {
+        if (event.button > 0 || drag.current) return
+        grab(event)
+        drag.current = { key: control.key, pointer: event.pointerId, y: event.nativeEvent.clientY }
+        if (control.kind !== 'knob') adjust(control, event)
+        setGrabbing(true)
+        keepDrawing(400)
+        invalidate()
+      },
+      onPointerMove(event: ThreeEvent<PointerEvent>) {
+        if (!mine(event)) return
+        event.stopPropagation()
+        adjust(control, event)
+        keepDrawing(400)
+        invalidate()
+      },
+      onPointerUp: end,
+      onPointerCancel: end,
+      onLostPointerCapture: end,
+    }
+  }
+
+  const pointAt = {
+    onPointerOver(event: ThreeEvent<PointerEvent>) {
+      event.stopPropagation()
+      setHover(true)
+    },
+    onPointerOut() {
+      setHover(false)
+    },
+  }
+
   useFrame((_, delta) => {
     const mesh = leds.current
     const dt = Math.min(delta, 0.05)
-    const pulse = on ? casaSound.pulse() : 0
-    // A fast attack and a slower fall, like a real meter; the right channel a touch behind the left.
-    const l = level.current
-    l.left = pulse > l.left ? pulse : MathUtils.damp(l.left, pulse, 6, dt)
-    l.right = pulse * 0.93 > l.right ? pulse * 0.93 : MathUtils.damp(l.right, pulse * 0.93, 5, dt)
-    if (mesh) {
-      for (let column = 0; column < 2; column++) {
-        const lit = Math.round((column ? l.right : l.left) * 0.8 * LEDS + (on ? 2 : 0))
-        for (let i = 0; i < LEDS; i++) mesh.setColorAt(column * LEDS + i, i < lit ? LED_COLOURS[i] : LED_OFF)
+    const { faders: faderLevels, crossfader: cross, eq } = casaSound.controls()
+    for (const i of [0, 1] as const) {
+      // A fast attack and a slower fall, like a real meter. It reads the channel before its fader.
+      const pulse = casaSound.deckPulse(i) * 10 ** ((eq[i].trim < 0 ? eq[i].trim * 12 : eq[i].trim * 6) / 20)
+      const playing = casaSound.isPlaying(i)
+      level.current[i] = pulse > level.current[i] ? pulse : MathUtils.damp(level.current[i], pulse, 6, dt)
+      if (mesh) {
+        const lit = Math.round(Math.min(1, level.current[i]) * 0.8 * LEDS + (playing ? 2 : 0))
+        for (let led = 0; led < LEDS; led++) mesh.setColorAt(i * LEDS + led, led < lit ? LED_COLOURS[led] : LED_OFF)
       }
-      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
+      const fader = faders.current[i]
+      if (fader) fader.position.z = MathUtils.lerp(FADER.down, FADER.up, faderLevels[i])
+      KNOBS.forEach(({ band }, row) => {
+        const knob = knobs.current[i * KNOBS.length + row]
+        if (knob) knob.rotation.y = -eq[i][band] * KNOB_TURN
+      })
     }
-    // Channel 1 (the playing deck) up; the crossfader over to its side.
-    faders.current.forEach((fader, i) => {
-      if (fader) fader.position.z = MathUtils.damp(fader.position.z, on && i === 0 ? 0.038 : 0.1, 5, dt)
-    })
-    if (crossfader.current) {
-      crossfader.current.position.x = MathUtils.damp(crossfader.current.position.x, on ? -0.044 : 0, 4, dt)
-    }
+    if (mesh?.instanceColor) mesh.instanceColor.needsUpdate = true
+    if (crossfader.current) crossfader.current.position.x = cross * CROSS
   })
 
   return (
-    <group position={position}>
+    <group ref={root} position={position}>
       <RoundedBox
         args={[BODY.width, BODY.height, BODY.depth]}
         radius={0.008}
@@ -109,12 +201,28 @@ export function Mixer({ position, on }: { position: [number, number, number]; on
         <planeGeometry args={[BODY.width - 0.012, BODY.depth - 0.012]} />
       </mesh>
 
-      {/* Gain and EQ knobs for each channel. */}
+      {/* Gain and EQ knobs for each channel; the cap's pointer line faces the back at the middle setting. */}
       {CHANNELS.flatMap((x, c) =>
-        KNOB_ROWS.map((z, r) => (
-          <group key={`${c}${r}`} position={[x, TOP + 0.007, z]} rotation-y={-SETTINGS[c * 4 + r] * 2.2}>
-            <mesh material={[made.knobSide, made.knobTop, made.knobSide]} castShadow>
+        KNOBS.map(({ band, z }, r) => (
+          <group
+            key={`${c}${band}`}
+            ref={(node) => void (knobs.current[c * KNOBS.length + r] = node)}
+            position={[x, TOP + 0.007, z]}
+          >
+            <mesh rotation-y={Math.PI / 2} material={[made.knobSide, made.knobTop, made.knobSide]} castShadow>
               <cylinderGeometry args={[r === 0 ? 0.0105 : 0.0095, r === 0 ? 0.0115 : 0.0105, 0.014, 32]} />
+            </mesh>
+            <mesh
+              visible={false}
+              {...dragAs({ kind: 'knob', key: `knob${c}${band}`, deck: c as DeckIndex, band })}
+              {...pointAt}
+              onDoubleClick={(event) => {
+                event.stopPropagation()
+                casaSound.setEq(c as DeckIndex, band, 0)
+                invalidate()
+              }}
+            >
+              <cylinderGeometry args={[0.016, 0.016, 0.02, 12]} />
             </mesh>
           </group>
         )),
@@ -122,12 +230,17 @@ export function Mixer({ position, on }: { position: [number, number, number]; on
 
       {/* Channel faders, and the crossfader in Casa orange. */}
       {CHANNELS.map((x, i) => (
-        <group key={x} ref={(node) => void (faders.current[i] = node)} position={[x, TOP + 0.006, 0.1]}>
-          <mesh material={made.cap} castShadow>
-            <boxGeometry args={[0.02, 0.012, 0.011]} />
-          </mesh>
-          <mesh position={[0, 0.0062, 0]} material={made.jack}>
-            <boxGeometry args={[0.02, 0.0004, 0.0015]} />
+        <group key={x}>
+          <group ref={(node) => void (faders.current[i] = node)} position={[x, TOP + 0.006, FADER.up]}>
+            <mesh material={made.cap} castShadow>
+              <boxGeometry args={[0.02, 0.012, 0.011]} />
+            </mesh>
+            <mesh position={[0, 0.0062, 0]} material={made.jack}>
+              <boxGeometry args={[0.02, 0.0004, 0.0015]} />
+            </mesh>
+          </group>
+          <mesh visible={false} position={[x, TOP + 0.006, (FADER.up + FADER.down) / 2]} {...dragAs({ kind: 'fader', key: `fader${i}`, deck: i as DeckIndex })} {...pointAt}>
+            <boxGeometry args={[0.034, 0.016, FADER.down - FADER.up + 0.02]} />
           </mesh>
         </group>
       ))}
@@ -136,6 +249,9 @@ export function Mixer({ position, on }: { position: [number, number, number]; on
           <boxGeometry args={[0.012, 0.012, 0.02]} />
         </mesh>
       </group>
+      <mesh visible={false} position={[0, TOP + 0.006, 0.146]} {...dragAs({ kind: 'cross', key: 'cross' })} {...pointAt}>
+        <boxGeometry args={[CROSS * 2 + 0.03, 0.016, 0.034]} />
+      </mesh>
 
       <instancedMesh ref={leds} args={[undefined, undefined, LEDS * 2]} material={made.led}>
         <boxGeometry args={[0.012, 0.0016, 0.0062]} />
