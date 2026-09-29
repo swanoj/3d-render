@@ -105,7 +105,7 @@ export function BackWall({
   assets,
 }: {
   centre: number
-  sign: { x: number; scale: number }
+  sign: { x: number; y: number; scale: number }
   assets: TvAssets | null
 }) {
   const paper = useMemo(() => wallpaperTexture(14, 3), [])
@@ -138,7 +138,7 @@ export function BackWall({
         <meshStandardMaterial map={paper} roughness={0.88} color="#6e5a52" />
       </mesh>
       {neon && (
-        <group position={[sign.x - centre, 0.25, 0.01]} scale={sign.scale}>
+        <group position={[sign.x - centre, sign.y, 0.01]} scale={sign.scale}>
           {/* The glow and the tubes share one layout, so the halo sits exactly round the letters. */}
           <mesh position={[0, 0, 0.002]}>
             <planeGeometry args={[signWidth, signWidth * 0.25]} />

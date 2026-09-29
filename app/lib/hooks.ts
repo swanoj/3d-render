@@ -80,3 +80,25 @@ export function useDeskControls() {
 }
 
 const controlsIdle = () => IDLE_CONTROLS
+
+/** Whether the booth (the landing page's DJ desk) is on screen: the radio dock steps aside while it is. */
+const booth = { onScreen: false, listeners: new Set<() => void>() }
+
+export const boothOnScreen = {
+  set(onScreen: boolean) {
+    if (onScreen === booth.onScreen) return
+    booth.onScreen = onScreen
+    for (const listener of booth.listeners) listener()
+  },
+}
+
+function subscribeBooth(listener: () => void) {
+  booth.listeners.add(listener)
+  return () => {
+    booth.listeners.delete(listener)
+  }
+}
+
+export function useBoothOnScreen() {
+  return useSyncExternalStore(subscribeBooth, () => booth.onScreen, () => false)
+}

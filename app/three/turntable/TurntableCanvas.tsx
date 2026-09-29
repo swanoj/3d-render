@@ -10,13 +10,13 @@ const TARGET: [number, number, number] = [0.036, -0.036, 0.018]
 /**
  * The radio dock's turntable (deck 1, Casa Radio's), drawn into a transparent canvas so it sits on the page with
  * its shadow. Like the room, it renders straight to the screen with no post-processing, and only draws frames
- * while something moves.
+ * while something moves, and none while `paused` (the dock's stepped aside).
  */
-export default function TurntableCanvas({ deck }: { deck: DeckState }) {
+export default function TurntableCanvas({ deck, paused = false }: { deck: DeckState; paused?: boolean }) {
   return (
     <Canvas
       className="turntable-canvas"
-      frameloop="demand"
+      frameloop={paused ? 'never' : 'demand'}
       shadows="percentage"
       dpr={[1, 2]}
       camera={{ position: CAMERA, fov: 24, near: 0.05, far: 4 }}
