@@ -62,8 +62,6 @@
   --font-bold: 'Helvetica Neue', Helvetica, Arimo, Arial, sans-serif;
   --font-mono: 'Roboto Mono', ui-monospace, Menlo, monospace;
   /* The landing page's DJ desk, along the bottom of the screen. */
-  --desk-height: clamp(210px, 30vh, 380px);
-
   --gutter: clamp(16px, 4vw, 56px);
   --header-h: 68px;
 
@@ -408,8 +406,11 @@ address {
   box-shadow: 0 1px 0 color-mix(in srgb, var(--mood-ink) 20%, transparent);
 }
 
-/* While the Casa TV room fills the screen the header steps aside; scrolling up or tabbing into it brings it back. */
-html[data-immersed] .site-header:not(:focus-within) {
+/*
+ * While the Casa TV room or the booth fills the screen the header steps aside; scrolling up or tabbing into it
+ * brings it back.
+ */
+html:is([data-immersed], [data-booth]) .site-header:not(:focus-within) {
   translate: 0 calc(-100% - 2px);
   box-shadow: none;
 }
@@ -560,8 +561,9 @@ html[data-immersed] .site-header:not(:focus-within) {
     translate 0.35s ease;
 }
 
-/* Out of the way while the Casa TV room fills the screen; the music plays on. */
-html[data-immersed] .radio-dock {
+/* Out of the way while the Casa TV room fills the screen, or the booth (with its own decks) is on screen. */
+html[data-immersed] .radio-dock,
+.radio-dock[data-hidden] {
   opacity: 0;
   translate: 0 24px;
   pointer-events: none;
@@ -620,46 +622,55 @@ html[data-immersed] .radio-dock {
   }
 }
 
-/* ---------- The DJ desk: the landing page's lower third ---------- */
+/* ---------- The booth: the DJ desk at the foot of the landing page ---------- */
 
 .dj-desk {
-  position: sticky;
-  bottom: 0;
-  z-index: 12;
-  height: var(--desk-height);
-  border-top: 1px solid rgb(237 225 211 / 0.14);
-  background:
-    radial-gradient(90% 120% at 50% 0%, #3b2519 0%, transparent 62%),
-    linear-gradient(180deg, #1c130f 0%, #0c0807 100%);
-  box-shadow: 0 -18px 44px rgb(0 0 0 / 0.38);
+  position: relative;
+  background: #0c0807;
   color: var(--cream);
-  animation: desk-rise 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
-  transition: translate 0.55s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-/* Out of the way while the Casa TV room has the screen. */
-.dj-desk[data-away] {
-  translate: 0 calc(100% + 30px);
+/* With the 3D, the section is taller than the screen and its inner box holds still while the camera cranes over. */
+.dj-desk[data-3d] {
+  height: 210svh;
 }
 
-/* Until the 3D arrives (or without it), a neon sign on the bar. */
-.dj-desk::before {
+.dj-desk-pin {
+  position: relative;
+  min-height: 62svh;
+  overflow: hidden;
+  isolation: isolate;
+  background:
+    radial-gradient(80% 60% at 50% 30%, #3b2519 0%, transparent 65%),
+    linear-gradient(180deg, #1c130f 0%, #0c0807 100%);
+}
+
+.dj-desk[data-3d] .dj-desk-pin {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  min-height: 520px;
+}
+
+/* Until the 3D arrives (or without it), a neon sign. */
+.dj-desk-pin::before {
   content: 'CLUB CASA';
   position: absolute;
   inset: 0;
   display: grid;
   place-items: center;
   color: #ff8a4c;
-  font: 700 clamp(28px, 4vw, 56px) / 1 var(--font-hand);
+  font: 700 clamp(44px, 8vw, 112px) / 1 var(--font-hand);
   letter-spacing: 0.04em;
   text-shadow:
-    0 0 12px rgb(255 84 24 / 0.8),
-    0 0 36px rgb(255 84 24 / 0.5);
-  opacity: 0.8;
+    0 0 14px rgb(255 84 24 / 0.8),
+    0 0 44px rgb(255 84 24 / 0.5);
+  opacity: 0.85;
+  pointer-events: none;
   transition: opacity 0.6s ease;
 }
 
-.dj-desk[data-three]::before {
+.dj-desk[data-three] .dj-desk-pin::before {
   opacity: 0;
 }
 
@@ -672,6 +683,32 @@ html[data-immersed] .radio-dock {
 
 .dj-desk[data-three] .dj-desk-stage {
   opacity: 1;
+}
+
+/* The title, top left. It moves up into the header's place while the header steps aside. */
+.dj-desk-head {
+  position: absolute;
+  top: calc(var(--header-h) + 14px);
+  left: var(--gutter);
+  z-index: 2;
+  pointer-events: none;
+  transition: translate 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+html[data-booth] .dj-desk-head {
+  translate: 0 calc(var(--header-h) * -1);
+}
+
+.dj-desk-head .label {
+  margin: 0 0 6px;
+  color: var(--orange);
+}
+
+.dj-desk-title {
+  margin: 0;
+  font-size: clamp(40px, 6vw, 76px);
+  line-height: 0.95;
+  text-shadow: 0 2px 18px rgb(0 0 0 / 0.5);
 }
 
 .dj-desk-pointer {
@@ -696,15 +733,32 @@ html[data-immersed] .radio-dock {
   display: none;
 }
 
-.dj-desk-controls {
+/* Along the bottom: play and what's on, and the crate's controls. */
+.dj-desk-bar {
   position: absolute;
-  bottom: 12px;
-  left: clamp(12px, 2vw, 28px);
+  right: 0;
+  bottom: 0;
+  left: 0;
   z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px 16px;
+  padding: 18px var(--gutter) max(18px, env(safe-area-inset-bottom));
+  pointer-events: none;
+}
+
+.dj-desk-bar > * {
+  pointer-events: auto;
+}
+
+.dj-desk-controls {
   display: flex;
   align-items: center;
   gap: 10px;
-  max-width: 55%;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .dj-desk-play {
@@ -746,21 +800,6 @@ html[data-immersed] .radio-dock {
   margin-right: 6px;
 }
 
-/* A zero-width point that the script moves under the crate; the controls centre on it without widening the page. */
-.dj-desk-crate-anchor {
-  position: absolute;
-  bottom: 12px;
-  left: 0;
-  z-index: 2;
-  width: 0;
-}
-
-.dj-desk:not([data-three]) .dj-desk-crate-anchor {
-  right: clamp(12px, 2vw, 28px);
-  left: auto;
-  width: auto;
-}
-
 .dj-desk-crate {
   display: flex;
   align-items: center;
@@ -770,11 +809,6 @@ html[data-immersed] .radio-dock {
   border: 1px solid rgb(237 225 211 / 0.16);
   border-radius: 999px;
   background: rgb(20 15 12 / 0.86);
-  translate: -50% 0;
-}
-
-.dj-desk:not([data-three]) .dj-desk-crate {
-  translate: none;
 }
 
 .dj-desk-flip {
@@ -823,10 +857,10 @@ html[data-immersed] .radio-dock {
   cursor: default;
 }
 
-/* How to play it, along the top for a few seconds as the camera arrives over the desk. */
+/* How to play it, above the bar for a few seconds as the camera arrives over the desk. */
 .dj-desk-hint {
   position: absolute;
-  top: 9px;
+  bottom: calc(max(18px, env(safe-area-inset-bottom)) + 64px);
   left: 50%;
   z-index: 2;
   width: max-content;
@@ -867,7 +901,7 @@ html[data-immersed] .radio-dock {
 /* The decks and mixer as form controls for the keyboard: out of sight until one has focus (always, without 3D). */
 .dj-desk-keys {
   position: absolute;
-  top: 8px;
+  top: calc(var(--header-h) + 14px);
   left: 50%;
   z-index: 3;
   display: flex;
@@ -889,9 +923,14 @@ html[data-immersed] .radio-dock {
 }
 
 .dj-desk-keys:focus-within,
-.dj-desk:not([data-three]) .dj-desk-keys {
+.dj-desk:not([data-3d]) .dj-desk-keys {
   clip-path: none;
   opacity: 1;
+}
+
+.dj-desk:not([data-3d]) .dj-desk-keys {
+  top: auto;
+  bottom: calc(max(18px, env(safe-area-inset-bottom)) + 64px);
 }
 
 .dj-desk-key {
@@ -924,13 +963,11 @@ label.dj-desk-key {
   cursor: pointer;
 }
 
-@keyframes desk-rise {
-  from {
-    translate: 0 100%;
-  }
-}
-
 @media (max-width: 640px) {
+  .dj-desk-bar {
+    justify-content: center;
+  }
+
   .dj-desk-now {
     display: none;
   }
@@ -947,12 +984,9 @@ label.dj-desk-key {
   .dj-desk-record {
     width: 9ch;
   }
-}
 
-@media (prefers-reduced-motion: reduce) {
-  .dj-desk {
-    animation: none;
-    transition: none;
+  .dj-desk-hint {
+    bottom: calc(max(18px, env(safe-area-inset-bottom)) + 108px);
   }
 }
 
@@ -1051,7 +1085,7 @@ html:has(.sheet[open]) {
   min-height: 100svh;
   margin-top: calc(var(--header-h) * -1);
   /* The DJ desk rides along the bottom of the landing page: the hero's buttons stay above it. */
-  padding: calc(var(--header-h) + 4vh) var(--gutter) calc(var(--desk-height) + 28px);
+  padding: calc(var(--header-h) + 4vh) var(--gutter) 56px;
   color: var(--fg);
   text-align: center;
 }

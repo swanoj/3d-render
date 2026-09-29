@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { mixes } from '../content/radio'
 import type { Mix } from '../content/types'
 import { casaSound, crossGain, PITCH_RANGE, type DeckIndex, type DeckState } from '../lib/casaSound'
-import { useDesk, useDeskControls, useRadio, useReducedMotion, useWebGLSupport } from '../lib/hooks'
+import { boothOnScreen, useDesk, useDeskControls, useRadio, useReducedMotion, useWebGLSupport } from '../lib/hooks'
 import type { DeskAnchors, DeskScroll } from '../three/desk/DeskCanvas'
 import { FLIGHT_MS, type Flight } from '../three/desk/layout'
 import { Note } from './Scribble'
@@ -89,13 +89,13 @@ function DeskKeys({ desk, decks }: { desk: readonly [DeckState, DeckState]; deck
 }
 
 /**
- * The landing page's lower third: a DJ desk along the bottom of the screen, in 3D. Headphones on the left, two
- * decks with a mixer between them, and a crate of records to dig through. It's all playable: drop a record on, move
- * the needle, ride the pitch, mix with the crossfader, scratch.
+ * The booth, at the foot of the landing page: a DJ desk in 3D that fills the screen. Two decks with a mixer between
+ * them, headphones and a crate of records to dig through, all playable: drop a record on, move the needle, ride the
+ * pitch, mix with the crossfader, scratch.
  *
- * It sticks to the bottom of the screen as the page scrolls, steps aside while the Casa TV room fills the screen,
- * and comes to rest above the footer. The camera starts low and cranes over the desk as the page scrolls. Without
- * WebGL, or with reduced motion, the same controls sit on a plain bar.
+ * The section holds still while you scroll through it, and the camera cranes from low down, the neon behind the
+ * decks, up and over the desk until it's looking down on them like the DJ; the site header steps aside meanwhile.
+ * The 3D loads as the booth comes near. Without WebGL, or with reduced motion, the same controls sit in a plain box.
  */
 export function DjDesk() {
   const radio = useRadio()
@@ -106,40 +106,56 @@ export function DjDesk() {
   const [selected, setSelected] = useState(0)
   const [flights, setFlights] = useState<Flight[]>([])
   const [decks, setDecks] = useState<1 | 2>(2)
-  const [away, setAway] = useState(false)
+  const [near, setNear] = useState(false)
+  const [loaded, setLoaded] = useState(false)
   const [over, setOver] = useState(false)
   const [ready, setReady] = useState(false)
   const [hint, setHint] = useState(false)
-  const scroll = useRef<DeskScroll>({ over: 0, page: 0 })
+  const section = useRef<HTMLElement>(null)
+  const scroll = useRef<DeskScroll>({ over: 0 })
   const note = useRef<HTMLDivElement>(null)
-  const crate = useRef<HTMLDivElement>(null)
   const timers = useRef<number[]>([])
   const flightIds = useRef(0)
 
-  // Where the page is, for the camera, and whether the Casa TV room has the screen. How to play the desk shows
-  // for a few seconds each time the camera arrives over it.
+  // Following the page through the booth: the camera cranes over the desk while the section holds still (done 70%
+  // of the way through), the site header steps aside while it's pinned and you're scrolling on, and how to play
+  // shows for a few seconds as the camera arrives overhead. The 3D loads, and draws, only when the booth is near.
   useEffect(() => {
+    const element = section.current
+    if (!element) return
+    const root = document.documentElement
+    let lastY = window.scrollY
+    let goingUp = false
     let arrived = false
     let hinting = 0
     const update = () => {
+      const { top, bottom, height } = element.getBoundingClientRect()
       const view = window.innerHeight
-      const travel = document.documentElement.scrollHeight - view
-      const tv = document.querySelector('.casa-tv')?.getBoundingClientRect()
-      // The camera cranes over the desk as the page scrolls, and is right over it just before the Casa TV room
-      // takes the screen (when the room's top reaches the middle); a screen down if there's no room.
-      const craned = tv ? (tv.top + window.scrollY - view * 0.5) * 0.92 : view
-      scroll.current.over = Math.min(1, window.scrollY / Math.max(view * 0.3, craned))
-      scroll.current.page = travel > 0 ? window.scrollY / travel : 0
-      const tucked = Boolean(tv && tv.top < view * 0.5 && tv.bottom > view * 0.5)
-      const isOver = scroll.current.over > 0.6
+      const travel = height - view
+      const progress = travel > 0 ? Math.min(1, Math.max(0, -top / travel)) : 0
+      scroll.current.over = Math.min(1, progress / 0.7)
+      const onScreen = top < view && bottom > 0
+      const close = top < view * 1.5 && bottom > -view * 0.5
+      setNear(close)
+      if (close) setLoaded(true)
+      boothOnScreen.set(onScreen)
+
+      const y = window.scrollY
+      if (Math.abs(y - lastY) > 6) {
+        goingUp = y < lastY
+        lastY = y
+      }
+      const pinned = top <= 0 && bottom >= view
+      root.toggleAttribute('data-booth', pinned && progress > 0.02 && !goingUp)
+
+      const isOver = onScreen && scroll.current.over > 0.6
       setOver(isOver)
-      setAway(tucked)
-      if (isOver && !tucked && !arrived) {
+      if (isOver && !arrived) {
         setHint(true)
         window.clearTimeout(hinting)
         hinting = window.setTimeout(() => setHint(false), 8000)
-      } else if ((!isOver || tucked) && arrived) setHint(false)
-      arrived = isOver && !tucked
+      } else if (!isOver && arrived) setHint(false)
+      arrived = isOver
     }
     update()
     window.addEventListener('scroll', update, { passive: true })
@@ -148,6 +164,8 @@ export function DjDesk() {
       window.clearTimeout(hinting)
       window.removeEventListener('scroll', update)
       window.removeEventListener('resize', update)
+      root.removeAttribute('data-booth')
+      boothOnScreen.set(false)
     }
   }, [])
 
@@ -160,12 +178,10 @@ export function DjDesk() {
     [],
   )
 
-  // The labels follow the 3D: the note points at deck 1, the crate's controls sit under its record.
+  // The note follows deck 1 on screen, never so far left that its words run off the edge.
   const place = useCallback((anchors: DeskAnchors) => {
-    if (note.current) note.current.style.transform = `translate3d(${anchors.deck[0]}px, ${anchors.deck[1]}px, 0)`
-    const bar = crate.current?.parentElement?.clientWidth ?? 0
-    const x = Math.min(Math.max(anchors.crate[0], 130), bar - 130)
-    if (crate.current) crate.current.style.transform = `translate3d(${x}px, 0, 0)`
+    const x = Math.max(anchors.deck[0], 100)
+    if (note.current) note.current.style.transform = `translate3d(${x}px, ${anchors.deck[1]}px, 0)`
     setDecks(anchors.decks)
   }, [])
 
@@ -188,7 +204,7 @@ export function DjDesk() {
       if (!casaSound.isPlaying(target)) casaSound.play(target)
       return
     }
-    if (!three || !ready) {
+    if (!three || !ready || !near) {
       casaSound.play(target, mix.id)
       return
     }
@@ -228,79 +244,89 @@ export function DjDesk() {
   const landing = flights.some((flight) => flight.way === 'in')
   return (
     <section
+      ref={section}
       className="dj-desk"
-      aria-label="Casa Radio DJ desk"
-      data-away={away || undefined}
+      aria-labelledby="dj-desk-title"
+      data-3d={three || undefined}
+      data-three={(three && ready) || undefined}
       data-over={over || undefined}
       data-hint={hint || undefined}
-      data-three={(three && ready) || undefined}
     >
-      <div className="dj-desk-stage" aria-hidden>
-        {three && (
-          <WebGLBoundary name="DJ desk">
-            <Suspense fallback={null}>
-              <DeskCanvas
-                desk={desk}
-                selected={selected}
-                flights={flights}
-                active={!away}
-                scroll={scroll}
-                onTap={tapDeck}
-                onToggle={casaSound.toggleRadio}
-                onFlip={flip}
-                onPlay={(index) => playRecord(index)}
-                onAnchors={place}
-                onReady={() => setReady(true)}
-              />
-            </Suspense>
-          </WebGLBoundary>
-        )}
-      </div>
-
-      {!radio.on && (
-        <div ref={note} className="dj-desk-pointer">
-          <Note className="dj-desk-note" arrow="arrow" delay={900}>
-            play music
-          </Note>
-        </div>
-      )}
-
-      <p className="dj-desk-hint mono" aria-hidden>
-        <span className="dj-desk-hint-long">Scroll the crate to dig · drag the needle on or off · slide the pitch · crossfade</span>
-        <span className="dj-desk-hint-short">Swipe the crate · drag the needle · slide the pitch</span>
-      </p>
-
-      <div className="dj-desk-controls">
-        <button type="button" className="dj-desk-play" aria-pressed={radio.on} onClick={casaSound.toggleRadio}>
-          <PlayIcon playing={radio.on} />
-          {radio.on ? 'Pause' : 'Play music'}
-        </button>
-        <p className="dj-desk-now mono" aria-live="polite">
-          {radio.on ? (
-            <>
-              <span className="on-air">On air</span> {radio.mix.title} · {radio.mix.artist}
-            </>
-          ) : (
-            'Casa Radio · Pick a record'
+      <div className="dj-desk-pin">
+        <div className="dj-desk-stage" aria-hidden>
+          {three && loaded && (
+            <WebGLBoundary name="DJ desk">
+              <Suspense fallback={null}>
+                <DeskCanvas
+                  desk={desk}
+                  selected={selected}
+                  flights={flights}
+                  active={near}
+                  scroll={scroll}
+                  onTap={tapDeck}
+                  onToggle={casaSound.toggleRadio}
+                  onFlip={flip}
+                  onPlay={(index) => playRecord(index)}
+                  onAnchors={place}
+                  onReady={() => setReady(true)}
+                />
+              </Suspense>
+            </WebGLBoundary>
           )}
+        </div>
+
+        <header className="dj-desk-head">
+          <p className="label">Casa Radio</p>
+          <h2 id="dj-desk-title" className="hand dj-desk-title">
+            The booth
+          </h2>
+        </header>
+
+        {!radio.on && (
+          <div ref={note} className="dj-desk-pointer">
+            <Note className="dj-desk-note" arrow="arrow" delay={900}>
+              play music
+            </Note>
+          </div>
+        )}
+
+        <p className="dj-desk-hint mono" aria-hidden>
+          <span className="dj-desk-hint-long">Scroll the crate to dig · drag the needle on or off · slide the pitch · crossfade</span>
+          <span className="dj-desk-hint-short">Swipe the crate · drag the needle · slide the pitch</span>
         </p>
-      </div>
 
-      <DeskKeys desk={desk} decks={decks} />
+        <DeskKeys desk={desk} decks={decks} />
 
-      <div ref={crate} className="dj-desk-crate-anchor">
-        <div className="dj-desk-crate" role="group" aria-label="Record crate">
-          <button type="button" className="dj-desk-flip" onClick={() => flip(-1)} aria-label="Previous record">
-            ‹
-          </button>
-          <span className="dj-desk-record mono">{shown.title}</span>
-          <button type="button" className="dj-desk-flip" onClick={() => flip(1)} aria-label="Next record">
-            ›
-          </button>
-          <button type="button" className="dj-desk-spin" onClick={() => playRecord(selected)} disabled={onDeck || landing}>
-            {onDeck ? 'Playing' : 'Play'}
-            <span className="visually-hidden"> {shown.title}</span>
-          </button>
+        <div className="dj-desk-bar">
+          <div className="dj-desk-controls">
+            <button type="button" className="dj-desk-play" aria-pressed={radio.on} onClick={casaSound.toggleRadio}>
+              <PlayIcon playing={radio.on} />
+              {radio.on ? 'Pause' : 'Play music'}
+            </button>
+            <p className="dj-desk-now mono" aria-live="polite">
+              {radio.on ? (
+                <>
+                  <span className="on-air">On air</span> {radio.mix.title} · {radio.mix.artist}
+                </>
+              ) : (
+                'Casa Radio · Pick a record'
+              )}
+            </p>
+          </div>
+
+          <div className="dj-desk-crate" role="group" aria-label="Record crate">
+            <button type="button" className="dj-desk-flip" onClick={() => flip(-1)} aria-label="Previous record">
+              ‹
+            </button>
+            <span className="dj-desk-record mono">{shown.title}</span>
+            <button type="button" className="dj-desk-flip" onClick={() => flip(1)} aria-label="Next record">
+              ›
+            </button>
+            <button type="button" className="dj-desk-spin" onClick={() => playRecord(selected)} disabled={onDeck || landing}>
+              {onDeck ? 'Playing' : 'Play'}
+              <span className="visually-hidden"> {shown.title}</span>
+            </button>
+          </div>
         </div>
       </div>
     </section>

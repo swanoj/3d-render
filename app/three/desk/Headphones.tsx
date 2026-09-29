@@ -77,6 +77,8 @@ function cupBadge(assets: TvAssets | null) {
 
 interface HeadphonesProps {
   position: [number, number, number]
+  /** Which way they're turned on the desk (radians). */
+  turn: number
   assets: TvAssets | null
   /** Seconds to wait before dropping onto the desk, for the intro. */
   delay: number
@@ -87,7 +89,7 @@ interface HeadphonesProps {
  * DJ headphones standing on the desk: padded band, swivel yokes, leather cushions and a curly lead running off
  * behind the deck. Tap them to play or pause Casa Radio; the cups thump very slightly with the kick.
  */
-export function Headphones({ position, assets, delay, onToggle }: HeadphonesProps) {
+export function Headphones({ position, turn, assets, delay, onToggle }: HeadphonesProps) {
   const invalidate = useThree((state) => state.invalidate)
   const group = useRef<Group>(null)
   const cups = useRef<(Group | null)[]>([])
@@ -162,7 +164,7 @@ export function Headphones({ position, assets, delay, onToggle }: HeadphonesProp
     const lift = MathUtils.damp(g.userData.lift ?? 0, hovered ? 0.014 : 0, 10, delta)
     g.userData.lift = lift
     g.position.set(position[0], position[1] + drop + lift, position[2])
-    g.rotation.y = 0.3 + lift * 6
+    g.rotation.y = turn + lift * 6
     const thump = 1 + casaSound.pulse() * 0.025
     for (const cup of cups.current) cup?.scale.setScalar(thump)
     if (t < 1) state.invalidate()

@@ -13,21 +13,14 @@ import { Headphones } from './Headphones'
 import { deskActivity, deskLayout, keepDrawing, seconds, type DeskLayout, type Flight } from './layout'
 import { Mixer } from './Mixer'
 
-/**
- * How the page has scrolled: `over` from the top to just before the Casa TV room takes the screen (0–1), which
- * cranes the camera over the desk, and `page` over the whole page (0–1).
- */
+/** How far the camera has craned over the desk, 0 (low, the neon behind the decks) to 1 (looking down on them). */
 export interface DeskScroll {
   over: number
-  page: number
 }
 
-/** Screen positions (px, in the canvas) for the page's labels, and how many decks the desk has room for. */
+/** Where deck 1 is on screen (px, in the canvas), for the note pointing at it, and how many decks there are. */
 export interface DeskAnchors {
-  /** Deck 1, for the note pointing at it. */
   deck: [number, number]
-  /** The top of the record showing in the crate. */
-  crate: [number, number]
   decks: 1 | 2
 }
 
@@ -35,7 +28,7 @@ interface DeskCanvasProps {
   desk: readonly [DeckState, DeckState]
   selected: number
   flights: Flight[]
-  /** Draw frames at all: off while the Casa TV room has the screen. */
+  /** Draw frames at all: off while the booth is off screen. */
   active: boolean
   scroll: RefObject<DeskScroll>
   /** A tap on a deck (not on its controls), or on the headphones: play or stop. */
@@ -55,8 +48,8 @@ const WHEEL_GAP = 70
 const ease = (t: number) => 1 - (1 - t) ** 3
 
 /**
- * The DJ desk along the bottom of the landing page: headphones, two decks and a mixer, and a crate of records to
- * dig through, in a booth under a neon sign. It's all playable. Rendered straight to the screen like the other 3D
+ * The booth at the foot of the landing page: two decks and a mixer, headphones and a crate of records to dig
+ * through, on a walnut desk under a neon sign. It's all playable. Rendered straight to the screen like the other 3D
  * (no post-processing), and only while something moves.
  */
 export default function DeskCanvas({ active, onReady, ...props }: DeskCanvasProps) {
@@ -65,8 +58,8 @@ export default function DeskCanvas({ active, onReady, ...props }: DeskCanvasProp
       className="dj-desk-canvas"
       frameloop={active ? 'demand' : 'never'}
       shadows="percentage"
-      dpr={[1, 1.6]}
-      camera={{ fov: 22, near: 0.05, far: 10, position: [0, 0.5, 2] }}
+      dpr={[1, 1.5]}
+      camera={{ fov: 30, near: 0.05, far: 12, position: [0, 0.5, 2.5] }}
       gl={{ antialias: true, toneMapping: NeutralToneMapping }}
       onCreated={({ gl }) => {
         gl.setClearColor('#140f0c')
@@ -83,12 +76,12 @@ function Scene({ desk, selected, flights, scroll, onTap, onToggle, onFlip, onPla
   const invalidate = useThree((state) => state.invalidate)
   const layout = deskLayout(size.width / Math.max(1, size.height))
   const [assets, setAssets] = useState<TvAssets | null>(null)
-  const crateTop = useRef(new Vector3())
   const slots = useRef<Slot[]>([])
   const overCrate = useRef(false)
   const landings = useMemo(
-    () => [layout.deckA, layout.deckB ?? layout.deckA].map((x) => new Vector3(x, DECK_Y + RECORD_TOP + 0.001, 0)),
-    [layout.deckA, layout.deckB],
+    () =>
+      [layout.deckA, layout.deckB ?? layout.deckA].map((x) => new Vector3(x, DECK_Y + RECORD_TOP + 0.001, layout.deckZ)),
+    [layout.deckA, layout.deckB, layout.deckZ],
   )
 
   useEffect(() => {
@@ -122,20 +115,28 @@ function Scene({ desk, selected, flights, scroll, onTap, onToggle, onFlip, onPla
       <Rig layout={layout} scroll={scroll} />
       <Driver />
       <Gestures overCrate={overCrate} onFlip={onFlip} />
-      <Anchors layout={layout} crate={crateTop} onAnchors={onAnchors} />
+      <Anchors layout={layout} onAnchors={onAnchors} />
 
-      <Headphones position={[layout.headphones, 0, 0.05]} assets={assets} delay={0.5} onToggle={onToggle} />
+      {layout.headphones && (
+        <Headphones
+          position={[layout.headphones.x, 0, layout.headphones.z]}
+          turn={layout.headphones.turn}
+          assets={assets}
+          delay={0.5}
+          onToggle={onToggle}
+        />
+      )}
       {decks.map(
         (x, i) =>
           x !== null && (
-            <group key={i} position={[x, DECK_Y, 0]}>
+            <group key={i} position={[x, DECK_Y, layout.deckZ]}>
               <Turntable deck={desk[i]} index={i as DeckIndex} pageShadow={false} playable onTap={() => onTap(i as DeckIndex)} />
             </group>
           ),
       )}
       {layout.mixer !== null && <Mixer position={[layout.mixer, 0, 0.02]} />}
       <Crate
-        position={[layout.crate, 0, 0.03]}
+        position={[layout.crate.x, 0, layout.crate.z]}
         records={mixes}
         selected={selected}
         flights={flights}
@@ -145,7 +146,6 @@ function Scene({ desk, selected, flights, scroll, onTap, onToggle, onFlip, onPla
         onFlip={onFlip}
         onPlay={onPlay}
         onHover={(over) => void (overCrate.current = over)}
-        anchor={crateTop}
         slots={slots}
       />
       {flights.map((flight) => (
@@ -156,9 +156,9 @@ function Scene({ desk, selected, flights, scroll, onTap, onToggle, onFlip, onPla
 }
 
 /**
- * The camera. It arrives with a dolly in from further back and frames whatever the layout holds. At the top of the
- * page it's low and cinematic, the neon sign behind the decks; as the page scrolls it cranes up and over the desk
- * until it's looking down on the decks like the DJ, and drifts gently along the desk as the page goes on.
+ * The camera. It arrives with a dolly in from further back and frames whatever the layout holds. At first it's low
+ * and cinematic, the neon sign behind the decks; as the page scrolls through the booth it cranes up and over the
+ * desk until it's looking down on the decks like the DJ.
  */
 function Rig({ layout, scroll }: { layout: DeskLayout; scroll: RefObject<DeskScroll> }) {
   const camera = useThree((state) => state.camera) as PerspectiveCamera
@@ -169,24 +169,27 @@ function Rig({ layout, scroll }: { layout: DeskLayout; scroll: RefObject<DeskScr
 
   useFrame((state, delta) => {
     if (born.current < 0) born.current = seconds()
+    // The layout's lens: wider on tall screens.
+    const lens = state.camera as PerspectiveCamera
+    if (lens.fov !== layout.fov) {
+      lens.fov = layout.fov
+      lens.updateProjectionMatrix()
+    }
     const intro = ease(MathUtils.clamp((seconds() - born.current - 0.05) / 1.7, 0, 1))
-    const { over: craned, page } = scroll.current ?? { over: 0, page: 0 }
-    // How far over the desk the camera has craned: none at the top of the page, all of it by the TV room.
-    const over = MathUtils.smoothstep(craned, 0.03, 0.97)
+    const over = MathUtils.smoothstep(scroll.current?.over ?? 0, 0.03, 0.97)
     const aspect = state.size.width / Math.max(1, state.size.height)
     const left = MathUtils.lerp(layout.span[0], layout.overhead[0], over)
     const right = MathUtils.lerp(layout.span[1], layout.overhead[1], over)
     const half = (right - left) / 2
     const across = Math.atan(Math.tan(MathUtils.degToRad(camera.fov) / 2) * aspect)
-    const fit = (half * MathUtils.lerp(1.12, 1.06, over)) / Math.tan(across)
+    const fit = (half * MathUtils.lerp(1.1, 1.05, over)) / Math.tan(across)
     const distance = fit * MathUtils.lerp(1.45, 1, intro)
     const elevation = MathUtils.lerp(0.17, layout.tilt, over) + (1 - intro) * 0.12
-    const drift = page - 0.5
-    const yaw = MathUtils.lerp(-0.03, 0, over) + drift * MathUtils.lerp(0.08, 0.02, over)
+    const yaw = MathUtils.lerp(-0.03, 0, over)
     const aim = target.current.set(
-      (left + right) / 2 + drift * MathUtils.lerp(0.06, 0.02, over),
-      MathUtils.lerp(0.13, 0.07, over),
-      MathUtils.lerp(0, 0.005, over),
+      (left + right) / 2,
+      MathUtils.lerp(layout.aim.low[0], layout.aim.over[0], over),
+      MathUtils.lerp(layout.aim.low[1], layout.aim.over[1], over),
     )
     const want = eye.current.set(
       aim.x + Math.sin(yaw) * Math.cos(elevation) * distance,
@@ -250,29 +253,17 @@ function Gestures({ overCrate, onFlip }: { overCrate: RefObject<boolean>; onFlip
   return null
 }
 
-/** Reports where the page's labels go on screen, when they move. */
-function Anchors({
-  layout,
-  crate,
-  onAnchors,
-}: {
-  layout: DeskLayout
-  crate: RefObject<Vector3>
-  onAnchors: (anchors: DeskAnchors) => void
-}) {
+/** Reports where deck 1 is on screen, for the note pointing at it, when it moves. */
+function Anchors({ layout, onAnchors }: { layout: DeskLayout; onAnchors: (anchors: DeskAnchors) => void }) {
   const point = useRef(new Vector3())
   const last = useRef('')
   useFrame(({ camera, size }) => {
-    const toScreen = (v: Vector3): [number, number] => {
-      v.project(camera)
-      return [(v.x * 0.5 + 0.5) * size.width, (0.5 - v.y * 0.5) * size.height]
-    }
-    const deck = toScreen(point.current.set(layout.deckA - 0.13, DECK_Y + 0.03, 0.1))
-    const front = toScreen(point.current.copy(crate.current))
-    const key = [...deck, ...front, layout.id].map((value) => (typeof value === 'number' ? Math.round(value) : value)).join()
+    const at = point.current.set(layout.deckA - 0.13, DECK_Y + 0.03, layout.deckZ + 0.1).project(camera)
+    const deck: [number, number] = [(at.x * 0.5 + 0.5) * size.width, (0.5 - at.y * 0.5) * size.height]
+    const key = `${Math.round(deck[0])},${Math.round(deck[1])},${layout.id}`
     if (key === last.current) return
     last.current = key
-    onAnchors({ deck, crate: front, decks: layout.deckB === null ? 1 : 2 })
+    onAnchors({ deck, decks: layout.deckB === null ? 1 : 2 })
   })
   return null
 }

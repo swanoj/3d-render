@@ -51,8 +51,6 @@ interface CrateProps {
   onPlay: (index: number) => void
   /** The pointer's over the crate (so the scroll wheel flicks through it). */
   onHover: (over: boolean) => void
-  /** Updated each frame: the front record's top edge, for the controls drawn over it. */
-  anchor: RefObject<Vector3>
   /** Updated each frame: where each record's disc is, for the flights. */
   slots: RefObject<Slot[]>
 }
@@ -70,7 +68,7 @@ function recordOf(object: Object3D | null): number | null {
  * scroll over the crate) and it flops forward over the front, showing the next. Past the last, they all go back.
  * Point at the one showing and its disc peeks out; tap it to play.
  */
-export function Crate({ position, records, selected, flights, loaded, assets, delay, onFlip, onPlay, onHover, anchor, slots }: CrateProps) {
+export function Crate({ position, records, selected, flights, loaded, assets, delay, onFlip, onPlay, onHover, slots }: CrateProps) {
   const invalidate = useThree((state) => state.invalidate)
   const sleeves = useRef<(Group | null)[]>([])
   const discs = useRef<(Group | null)[]>([])
@@ -195,7 +193,6 @@ export function Crate({ position, records, selected, flights, loaded, assets, de
       slot.centre.set(0, SLEEVE / 2, 0).applyMatrix4(sleeve.matrixWorld)
       slot.lean = lean
       slots.current[i] = slot
-      if (i === selected) anchor.current?.set(0, SLEEVE + 0.012, 0).applyMatrix4(sleeve.matrixWorld)
     })
     BACKSTOCK.forEach((_, j) => {
       const sleeve = sleeves.current[records.length + j]

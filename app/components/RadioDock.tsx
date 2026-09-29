@@ -1,7 +1,7 @@
 import { lazy, Suspense, useState } from 'react'
 import { useLocation } from 'react-router'
 import { casaSound } from '../lib/casaSound'
-import { useDesk, useRadio, useReducedMotion, useWebGLSupport } from '../lib/hooks'
+import { useBoothOnScreen, useDesk, useRadio, useReducedMotion, useWebGLSupport } from '../lib/hooks'
 import { WebGLBoundary } from './Stages'
 
 // three.js loads with the turntable, the first time the radio plays.
@@ -27,6 +27,7 @@ function PlayIcon({ playing }: { playing: boolean }) {
 export function RadioDock() {
   const radio = useRadio()
   const [deck] = useDesk()
+  const booth = useBoothOnScreen()
   const webgl = useWebGLSupport()
   const reducedMotion = useReducedMotion()
   const { pathname } = useLocation()
@@ -37,17 +38,18 @@ export function RadioDock() {
     setSeen(radio.since)
     if (radio.on) setOpen(true)
   }
-  // The landing page has the DJ desk instead.
-  if (!open || !webgl || reducedMotion || pathname === '/') return null
+  if (!open || !webgl || reducedMotion) return null
+  // On the landing page it steps aside (and stops drawing) while the booth, with its own decks, is on screen.
+  const hidden = pathname === '/' && booth
 
   const { on, mix } = radio
   return (
-    <aside className="radio-dock" aria-label="Casa Radio turntable">
+    <aside className="radio-dock" aria-label="Casa Radio turntable" data-hidden={hidden || undefined} inert={hidden}>
       {/* Tapping the record plays or pauses, like the button below it. */}
       <div className="radio-dock-deck" aria-hidden onClick={casaSound.toggleRadio}>
         <WebGLBoundary name="turntable">
           <Suspense fallback={null}>
-            <TurntableCanvas deck={deck} />
+            <TurntableCanvas deck={deck} paused={hidden} />
           </Suspense>
         </WebGLBoundary>
       </div>
