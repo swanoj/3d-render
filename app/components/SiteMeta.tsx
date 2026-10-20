@@ -2,7 +2,7 @@ import { Analytics } from '@vercel/analytics/react'
 import { SpeedInsights } from '@vercel/speed-insights/react'
 import { useLocation, useMatches } from 'react-router'
 import type { SiteConfig } from '../lib/site.server'
-import { homeJsonLd } from '../lib/structuredData'
+import { homeJsonLd, type Contact } from '../lib/structuredData'
 
 /** What a link to the site looks like when it's shared, unless the page has a picture of its own. */
 const SHARE_CARD: ShareImage = {
@@ -60,7 +60,7 @@ function GoogleAnalytics({ id }: { id: string }) {
  * Tags every page shares, in the document head: the canonical address, the share picture, whether search engines
  * may index this host, site verification, the home page's structured data and Google Analytics.
  */
-export function SiteHead({ site }: { site?: SiteConfig }) {
+export function SiteHead({ site }: { site?: SiteConfig & { contact?: Contact } }) {
   const { pathname } = useLocation()
   const image = useShareImage()
   if (!site) return null
@@ -80,7 +80,7 @@ export function SiteHead({ site }: { site?: SiteConfig }) {
       {!site.indexable && <meta name="robots" content="noindex, nofollow" />}
       {site.verification.google && <meta name="google-site-verification" content={site.verification.google} />}
       {site.verification.bing && <meta name="msvalidate.01" content={site.verification.bing} />}
-      {pathname === '/' && <JsonLd data={homeJsonLd(site.origin)} />}
+      {pathname === '/' && <JsonLd data={homeJsonLd(site.origin, site.contact)} />}
       {site.googleAnalyticsId && <GoogleAnalytics id={site.googleAnalyticsId} />}
     </>
   )

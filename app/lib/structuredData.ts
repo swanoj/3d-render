@@ -36,9 +36,13 @@ export function venueJsonLd(): Json {
   }
 }
 
-/** Club Casa itself. Contact details and Instagram join in once they're confirmed in brand.ts. */
-export function organizationJsonLd(origin: string): Json {
-  const { contact } = brand
+export interface Contact {
+  email: string | null
+  instagram: string | null
+}
+
+/** Club Casa itself. The email and Instagram join in once they're confirmed (in the back office or brand.ts). */
+export function organizationJsonLd(origin: string, contact: Contact = brand.contact): Json {
   return {
     '@type': 'Organization',
     '@id': ids(origin).organization,
@@ -87,11 +91,11 @@ export function seriesJsonLd(origin: string, nights: NightView[] = []): Json {
 }
 
 /** The home page: who the club is, the site, and the series. */
-export function homeJsonLd(origin: string): Json {
+export function homeJsonLd(origin: string, contact?: Contact): Json {
   return {
     '@context': 'https://schema.org',
     '@graph': [
-      organizationJsonLd(origin),
+      organizationJsonLd(origin, contact),
       {
         '@type': 'WebSite',
         '@id': ids(origin).website,
@@ -147,6 +151,7 @@ export function eventJsonLd(night: NightView, origin: string, description: strin
             '@type': 'Offer',
             url: night.ticketUrl,
             availability: `https://schema.org/${night.status === 'sold-out' ? 'SoldOut' : 'InStock'}`,
+            ...(night.priceFrom !== undefined ? { price: night.priceFrom, priceCurrency: 'AUD' } : {}),
           },
         }
       : {}),

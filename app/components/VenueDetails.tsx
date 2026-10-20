@@ -1,12 +1,14 @@
 import { brand } from '../brand/brand'
+import { useContact } from '../lib/useSite'
 import { Pending } from './Pending'
 
 /**
  * The venue's essentials: where, when and how to reach the team. Used on the contact page and in the footer. The
- * email and Instagram show as marked placeholders until they're set in brand.ts.
+ * email and Instagram show as marked placeholders until they're set in the back office (Venue & contact).
  */
 export function VenueDetails({ className }: { className?: string }) {
-  const { venue, hours, contact } = brand
+  const { venue, hours } = brand
+  const contact = useContact()
   return (
     <dl className={['venue-details', className].filter(Boolean).join(' ')}>
       <div>

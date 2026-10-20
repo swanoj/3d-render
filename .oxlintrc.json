@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["react", "typescript", "oxc"],
-  "ignorePatterns": ["build", ".react-router"],
+  "ignorePatterns": ["build", ".react-router", "studio/dist", "studio/.sanity"],
   "rules": {
     "react/rules-of-hooks": "error",
     "react/only-export-components": [

@@ -1,0 +1,30 @@
+{
+  "name": "club-casa-studio",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "The Club Casa back office: Sanity Studio for nights, acts, FAQs and the venue's details.",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "sanity dev --port 3333",
+    "build": "sanity build",
+    "deploy": "sanity deploy",
+    "seed": "sanity exec seed.ts --with-user-token",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@sanity/icons": "^5.2.3",
+    "@sanity/vision": "^6.20.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "sanity": "^6.20.0",
+    "styled-components": "^6.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@types/react": "^19.2.18",
+    "typescript": "~6.0.2"
+  }
+}

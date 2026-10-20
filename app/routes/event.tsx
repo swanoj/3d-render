@@ -14,7 +14,7 @@ import { ShareButton } from '../components/ShareButton'
 import { TicketButton } from '../components/TicketButton'
 import { getNight, getPhotos } from '../content/content.server'
 import { track } from '../lib/analytics'
-import { clockTime, posterDate } from '../lib/format'
+import { clockTime, posterDate, price } from '../lib/format'
 import { useNow } from '../lib/hooks'
 import { nightPhase, requestNow } from '../lib/nightOf'
 import { eventPath } from '../lib/paths'
@@ -163,7 +163,8 @@ export default function EventPage({ loaderData }: Route.ComponentProps) {
           <div>
             <dt>Entry</dt>
             <dd>
-              {brand.entry} <Pending>Entry price</Pending>
+              {brand.entry}{' '}
+              {night.priceFrom !== undefined ? `Tickets from ${price(night.priceFrom)}.` : <Pending>Entry price</Pending>}
             </dd>
           </div>
           <div>

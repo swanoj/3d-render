@@ -59,6 +59,11 @@ export function localIso(ms: number) {
   return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}${offset}`
 }
 
+/** "$25", or "$25.50" when there are cents. */
+export function price(aud: number) {
+  return `$${Number.isInteger(aud) ? aud : aud.toFixed(2)}`
+}
+
 export function pad2(value: number) {
   return String(value).padStart(2, '0')
 }

@@ -1,6 +1,7 @@
 import { data } from 'react-router'
 import type { Route } from './+types/api.enquiry'
-import { enquiries, isEnquiryKind } from '../content/enquiries'
+import { enquiries, isEnquiryKind, type Enquiry, type EnquiryKind } from '../content/enquiries'
+import { emailEnabled, escapeHtml, sendEmail, type Email } from '../lib/email.server'
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const LONG = 4000
@@ -13,10 +14,71 @@ export interface EnquiryResult {
   errors?: Record<string, string>
 }
 
+/** The inbox line, so the team can see what it is before opening it. */
+function subjectFor(kind: EnquiryKind, values: Record<string, string>) {
+  const name = values.name || 'the website'
+  const extra = {
+    birthday: [values.date, values.guests && `${values.guests} guests`],
+    booth: [values.date, values.group && `group of ${values.group}`],
+    careers: [values.role],
+    contact: [],
+  }[kind].filter(Boolean)
+  const what = kind === 'careers' ? 'Job application' : kind === 'contact' ? values.topic || 'Message' : enquiries[kind].title
+  return [`${what} from ${name}`, ...extra].join(' · ')
+}
+
+/** The email to the team: every field that was filled in, with Reply going straight to the person who sent it. */
+function enquiryEmail(kind: EnquiryKind, enquiry: Enquiry, values: Record<string, string>, to: string[]): Email {
+  const rows = enquiry.fields.flatMap((field) => (values[field.name] ? [[field.label, values[field.name]]] : []))
+  const name = values.name || 'them'
+  return {
+    from: process.env.ENQUIRY_EMAIL_FROM?.trim() || 'Club Casa website <onboarding@resend.dev>',
+    to,
+    subject: subjectFor(kind, values),
+    replyTo: EMAIL.test(values.email ?? '') ? values.email : undefined,
+    text: [`${enquiry.title}, from the website`, '', ...rows.map(([label, value]) => `${label}: ${value}`), '', `Reply to this email to answer ${name}.`].join('\n'),
+    html: [
+      `<p style="font:600 15px/1.4 Helvetica,Arial,sans-serif;color:#212121">${escapeHtml(enquiry.title)}, from the website</p>`,
+      '<table style="border-collapse:collapse;font:14px/1.5 Helvetica,Arial,sans-serif;color:#212121">',
+      ...rows.map(
+        ([label, value]) =>
+          `<tr><td style="padding:4px 16px 4px 0;vertical-align:top;color:#6b665e">${escapeHtml(label)}</td><td style="padding:4px 0;white-space:pre-wrap">${escapeHtml(value)}</td></tr>`,
+      ),
+      '</table>',
+      `<p style="font:13px/1.4 Helvetica,Arial,sans-serif;color:#6b665e">Reply to this email to answer ${escapeHtml(name)}.</p>`,
+    ].join(''),
+  }
+}
+
 /**
- * Birthday, booth, careers and contact enquiries. Checks the fields against content/enquiries.ts, then forwards the
- * enquiry as JSON to ENQUIRY_WEBHOOK_URL (a Zapier, Make or n8n webhook that emails the team, or any endpoint of
- * your own), the same way the newsletter sign-up works.
+ * Where an enquiry goes: an email to the team through Resend (RESEND_API_KEY and ENQUIRY_EMAIL_TO), a webhook
+ * (ENQUIRY_WEBHOOK_URL: Zapier, Make, n8n or your own), or both. It's sent if any of them took it.
+ */
+async function deliver(kind: EnquiryKind, enquiry: Enquiry, values: Record<string, string>) {
+  const sends: Promise<unknown>[] = []
+  const to = (process.env.ENQUIRY_EMAIL_TO ?? '').split(',').map((address) => address.trim()).filter(Boolean)
+  if (emailEnabled() && to.length) sends.push(sendEmail(enquiryEmail(kind, enquiry, values, to)))
+  const webhook = process.env.ENQUIRY_WEBHOOK_URL
+  if (webhook) {
+    sends.push(
+      fetch(webhook, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind, form: enquiry.title, fields: values, source: 'website', submittedAt: new Date().toISOString() }),
+      }).then((response) => {
+        if (!response.ok) throw new Error(`Enquiry webhook responded ${response.status}`)
+      }),
+    )
+  }
+  if (!sends.length) return 'off'
+  const results = await Promise.allSettled(sends)
+  for (const result of results) if (result.status === 'rejected') console.error(result.reason)
+  return results.some((result) => result.status === 'fulfilled') ? 'sent' : 'failed'
+}
+
+/**
+ * Birthday, booth, careers and contact enquiries. Checks the fields against content/enquiries.ts, then sends the
+ * enquiry to the team (see deliver).
  */
 export async function action({ request }: Route.ActionArgs) {
   const form = await request.formData()
@@ -53,24 +115,15 @@ export async function action({ request }: Route.ActionArgs) {
     return data<EnquiryResult>({ ok: false, message: 'Check the highlighted fields.', errors }, { status: 400 })
   }
 
-  const webhook = process.env.ENQUIRY_WEBHOOK_URL
-  if (!webhook) {
-    console.warn(`A ${kind} enquiry was received, but ENQUIRY_WEBHOOK_URL is not set.`)
+  const outcome = await deliver(kind, enquiry, values)
+  if (outcome === 'off') {
+    console.warn(`A ${kind} enquiry was received, but neither Resend (RESEND_API_KEY, ENQUIRY_EMAIL_TO) nor ENQUIRY_WEBHOOK_URL is set.`)
     return data<EnquiryResult>(
       { ok: false, message: 'Enquiries aren’t connected yet. Please try again soon.' },
       { status: 503 },
     )
   }
-
-  try {
-    const response = await fetch(webhook, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ kind, form: enquiry.title, fields: values, source: 'website', submittedAt: new Date().toISOString() }),
-    })
-    if (!response.ok) throw new Error(`Enquiry webhook responded ${response.status}`)
-  } catch (error) {
-    console.error(error)
+  if (outcome === 'failed') {
     return data<EnquiryResult>({ ok: false, message: 'Something went wrong. Please try again.' }, { status: 502 })
   }
 

@@ -31,3 +31,6 @@ dist-ssr
 # React Router
 /.react-router/
 /build
+
+# Sanity Studio (studio/)
+.sanity

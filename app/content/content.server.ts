@@ -6,13 +6,14 @@ import { weeklyArtwork } from './artwork'
 import { faq, gettingThere } from './faq'
 import { houseRules, room } from './house'
 import { nights } from './nights'
+import { cmsSite } from './cms.server'
 import { photosFor } from './photos'
 import { mixes } from './radio'
-import type { Act, Night, NightView, ShownAct } from './types'
+import type { Act, Night, NightView, Photo, ShownAct } from './types'
 
 /*
- * The content API route loaders call. It reads the typed files in this folder today; moving the schedule into a
- * CMS (the reference build uses Sanity) means replacing these bodies with queries and keeping the return types.
+ * The content API route loaders call: the typed files in this folder, with what the team publishes in the back
+ * office (Sanity Studio, see /studio) laid over them. The return types stay the same either way.
  */
 
 /**
@@ -101,9 +102,35 @@ function weeklyNights(now: number): Night[] {
   })
 }
 
-/** The calendar: the weekly placeholders, with any night announced in nights.ts in place of its Saturday. */
-function calendar(now: number) {
-  const announced = new Map(nights.map((night) => [night.slug, night]))
+/** Items from the content files, with any the back office has published under the same slug in their place. */
+function mergeBySlug<T extends { slug: string }>(files: T[], published: T[] = []) {
+  const bySlug = new Map(files.map((item) => [item.slug, item]))
+  for (const item of published) bySlug.set(item.slug, item)
+  return [...bySlug.values()]
+}
+
+/**
+ * Everything the pages show: the files in this folder, with whatever the back office (Sanity) has published laid
+ * over them. Without Sanity connected, it's the files alone.
+ */
+async function content() {
+  const cms = await cmsSite()
+  return {
+    nights: mergeBySlug(nights, cms?.nights),
+    artists: mergeBySlug(artists, cms?.artists),
+    photos: cms?.photos ?? new Map<string, Photo[]>(),
+    faq: cms?.faq ?? faq,
+    gettingThere: cms?.gettingThere ?? gettingThere,
+    contact: {
+      email: cms?.contact.email ?? brand.contact.email,
+      instagram: cms?.contact.instagram ?? brand.contact.instagram,
+    },
+  }
+}
+
+/** The calendar: the weekly placeholders, with any announced night in place of its Saturday. */
+function calendar(now: number, announcedNights: Night[]) {
+  const announced = new Map(announcedNights.map((night) => [night.slug, night]))
   const weekly = weeklyNights(now).map((placeholder) => {
     const night = announced.get(placeholder.slug)
     announced.delete(placeholder.slug)
@@ -113,7 +140,7 @@ function calendar(now: number) {
 }
 
 export async function getNights(now = Date.now()) {
-  const sorted = calendar(now)
+  const sorted = calendar(now, (await content()).nights)
   const upcoming = sorted.filter((night) => Date.parse(night.startsAt) + RUNNING_TIME > now)
   // The archive is for nights that were announced; an empty placeholder Saturday isn't worth listing.
   const past = sorted.filter((night) => !night.placeholder && Date.parse(night.startsAt) + RUNNING_TIME <= now).reverse()
@@ -132,12 +159,12 @@ export async function getSaturdays(now = Date.now()): Promise<[string, string][]
 }
 
 export async function getNight(slug: string, now = Date.now()) {
-  const night = calendar(now).find((candidate) => candidate.slug === slug)
+  const night = calendar(now, (await content()).nights).find((candidate) => candidate.slug === slug)
   return night ? viewNight(night, now) : null
 }
 
 export async function getArtist(slug: string, now = Date.now()) {
-  const artist = artists.find((candidate) => candidate.slug === slug)
+  const artist = (await content()).artists.find((candidate) => candidate.slug === slug)
   if (!artist) return null
   // The nights they play that have announced them.
   const { upcoming } = await getNights(now)
@@ -146,14 +173,27 @@ export async function getArtist(slug: string, now = Date.now()) {
   return { artist, playing, mix }
 }
 
+/** The most recent night with photos, from the files or the back office. */
+function latestPhotos(published: Map<string, Photo[]>) {
+  const local = photosFor()
+  const latest = [...published.keys()].sort().pop()
+  return latest && latest > (local[0]?.nightSlug ?? '') ? (published.get(latest) ?? []) : local
+}
+
 export async function getHouse() {
-  return { houseRules, room, photos: photosFor() }
+  return { houseRules, room, photos: latestPhotos((await content()).photos) }
 }
 
 export async function getPhotos(nightSlug: string) {
-  return photosFor(nightSlug)
+  return [...photosFor(nightSlug), ...((await content()).photos.get(nightSlug) ?? [])]
 }
 
 export async function getGuide() {
+  const { faq, gettingThere } = await content()
   return { faq, gettingThere }
+}
+
+/** The contact email and Instagram handle, once they're confirmed (in the back office or brand.ts). */
+export async function getContact() {
+  return (await content()).contact
 }

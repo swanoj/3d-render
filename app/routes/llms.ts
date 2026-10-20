@@ -1,8 +1,8 @@
 import type { Route } from './+types/llms'
 import { brand } from '../brand/brand'
-import { getGuide, getNights } from '../content/content.server'
+import { getContact, getGuide, getNights } from '../content/content.server'
 import type { NightView } from '../content/types'
-import { clockTime, dateParts, posterDate } from '../lib/format'
+import { clockTime, dateParts, posterDate, price } from '../lib/format'
 import { requestNow } from '../lib/nightOf'
 import { eventPath } from '../lib/paths'
 import { siteOrigin } from '../lib/site.server'
@@ -27,20 +27,25 @@ function nightLine(night: NightView, origin: string) {
   const date = `${posterDate(night.startsAt)} ${dateParts(night.startsAt).year}`
   const lineup =
     night.lineupConfirmed && night.lineup.length ? `Line-up: ${night.lineup.join(', ')}.` : 'Line-up to be announced.'
+  const from = night.priceFrom !== undefined ? ` From ${price(night.priceFrom)}.` : ''
   const tickets =
     night.status === 'sold-out'
       ? 'Sold out.'
       : night.status === 'on-sale' && night.ticketUrl
-        ? `Tickets: ${night.ticketUrl}`
-        : 'Tickets on sale soon.'
+        ? `Tickets: ${night.ticketUrl}${from}`
+        : `Tickets on sale soon.${from}`
   const title = night.title === brand.name ? '' : `${night.title}. `
   return `- [${date}](${origin}${eventPath(night)}): ${title}Doors ${clockTime(night.startsAt)} until ${night.closes}. ${lineup} ${tickets}`
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
   const origin = siteOrigin(request)
-  const [{ upcoming }, { faq, gettingThere }] = await Promise.all([getNights(requestNow(request)), getGuide()])
-  const { venue, hours, contact } = brand
+  const [{ upcoming }, { faq, gettingThere }, contact] = await Promise.all([
+    getNights(requestNow(request)),
+    getGuide(),
+    getContact(),
+  ])
+  const { venue, hours } = brand
   const address = `${venue.street}, ${venue.locality}, Australia`
   const unannounced = faq.filter((item) => !item.answer)
   const reach = [

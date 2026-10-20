@@ -38,11 +38,34 @@ npm run lint     # Oxlint
 npm start        # serve the build on http://localhost:3000
 ```
 
+## The back office
+
+The team edits the site in **Sanity Studio**, a web app in `studio/` that Sanity hosts (at `<name>.sanity.studio` once it's deployed). It's laid out around the week:
+
+- **Coming up** and **Past nights:** each night's date and doors, name, colourway and vinyl badge; the line-up in poster order (linked to acts' pages), its reveal phases and set times; tickets (not on sale, on sale with the link, sold out) and the price from; the poster, with a focal point for cropping, and photos from the night. A new night starts on the coming Saturday at 10PM. Plain-English checks catch mistakes, like putting a night on sale without its ticket link.
+- **Acts:** name, the line under it, bio, portrait, links and their Casa Radio mix.
+- **FAQs:** the questions in order. Leave an answer empty and the page shows its "to be confirmed" placeholder, and the question stays out of search results until it's answered.
+- **Venue & contact:** the contact email, the Instagram handle and getting there.
+
+The site reads what's published from Sanity's CDN (`app/lib/sanity.server.ts`, `app/content/cms.server.ts`), and it's on the site within a minute. Anything published replaces the content files' version (a night or act with the same slug, or the FAQs and venue details once they're saved), so the site works the same with Sanity connected or not. If Sanity can't be reached, pages carry on with the last content it sent, or the files.
+
+```sh
+cd studio
+npm install
+npx sanity login                  # once, in the browser
+npm run dev                       # http://localhost:3333
+npm run seed                      # once: copies the FAQs, venue details and acts from app/content
+npm run deploy -- --url clubcasa  # publish the back office to clubcasa.sanity.studio
+```
+
+The Studio keeps itself on the latest Sanity release. Changing the content model (`studio/schemaTypes/`) needs a `npm run deploy`.
+
 ## Editing the site
 
 | What | Where |
 | --- | --- |
-| Events: announced nights, line-ups, reveal phases, set times, artwork, ticket links | `app/content/nights.ts` |
+| Nights, acts, FAQs, the contact email and Instagram, getting there | The back office (see above) |
+| Events in code: announced nights, line-ups, reveal phases, set times, artwork, ticket links | `app/content/nights.ts` |
 | The weekly posters used until a night has its own artwork | `app/content/artwork.ts`, images in `public/artwork/` |
 | Brand: palette, colourways, hours, venue, contact email and Instagram, nav, copy | `app/brand/brand.ts` |
 | FAQs and getting there | `app/content/faq.ts` |
@@ -59,11 +82,11 @@ npm start        # serve the build on http://localhost:3000
 | Structured data, sitemap, robots.txt, llms.txt | `app/lib/structuredData.ts`, `app/routes/sitemap.ts`, `robots.ts`, `llms.ts` |
 | The share card and analytics tags | `public/share/`, `app/components/SiteMeta.tsx`, `app/lib/analytics.ts` |
 
-**The calendar fills itself in.** Club Casa runs every Saturday, so the site lists the next eight Saturdays as placeholders ("Club Casa", line-up to be announced, tickets soon), each with one of the brand's posts as its artwork. To announce a night, add it to `app/content/nights.ts` under its date slug: whatever you give it (title, artwork, line-up, set times, `ticketUrl`) replaces the placeholder for that Saturday. Set `status: 'on-sale'` with a `ticketUrl` to turn its button into **Get tickets**, and `lineupConfirmed: true` once the line-up is real bookings. One-off nights on other days work the same way.
+**The calendar fills itself in.** Club Casa runs every Saturday, so the site lists the next eight Saturdays as placeholders ("Club Casa", line-up to be announced, tickets soon), each with one of the brand's posts as its artwork. To announce a night, add it in the back office, or to `app/content/nights.ts` under its date slug: whatever you give it (title, artwork, line-up, set times, `ticketUrl`) replaces the placeholder for that Saturday. Set `status: 'on-sale'` with a `ticketUrl` to turn its button into **Get tickets**, and `lineupConfirmed: true` once the line-up is real bookings. One-off nights on other days work the same way.
 
 To hold names back, give an act a `phase` and the night a `phases` entry with the date it's revealed: `{ phase: 2, at: '2026-10-30T18:00:00+11:00' }`.
 
-**Placeholders.** The brief asks for nothing to be invented: details that aren't confirmed yet show as a dashed "To be confirmed" placeholder until they're filled in. That's the contact email and Instagram (`brand.contact` in `app/brand/brand.ts`), entry prices, the ticketing partner, birthday packages, booth options and the dress code (in `app/content/faq.ts` and on those pages).
+**Placeholders.** The brief asks for nothing to be invented: details that aren't confirmed yet show as a dashed "To be confirmed" placeholder until they're filled in. That's the contact email and Instagram (Venue & contact in the back office, or `brand.contact` in `app/brand/brand.ts`), entry prices (each night's "Tickets from"), the ticketing partner, birthday packages, booth options and the dress code (the FAQs, in the back office or `app/content/faq.ts`, and on those pages).
 
 ## Brand kit
 
@@ -79,8 +102,16 @@ From the official Club Casa Brand Guideline (Alicyte Design):
 
 | Variable | Purpose |
 | --- | --- |
-| `NEWSLETTER_WEBHOOK_URL` | Where mailing-list sign-ups are POSTed as JSON (Klaviyo, Mailchimp, Zapier, Make or your own endpoint). Without it the form says sign-up isn't connected yet. |
-| `ENQUIRY_WEBHOOK_URL` | Where birthday, booth, careers and contact enquiries are POSTed as JSON (`{ kind, form, fields, submittedAt }`), e.g. a Zapier or Make webhook that emails the team. Without it the forms say enquiries aren't connected yet. |
+| `SANITY_PROJECT_ID` | The back office's Sanity project. Without it the site uses the content files alone. |
+| `SANITY_DATASET` | Its dataset, `production` unless set. |
+| `SANITY_API_ORIGIN` | Testing only: a stand-in for Sanity's query API, to run the site against sample content. |
+| `RESEND_API_KEY` | Secret. Turns on emailing enquiries to the team through Resend. |
+| `ENQUIRY_EMAIL_TO` | Who gets the enquiry emails (comma-separated). Reply on one goes straight to the person who sent it. |
+| `ENQUIRY_EMAIL_FROM` | The sender, on a domain verified in Resend, e.g. `Club Casa website <enquiries@clubcasa.com.au>`. Until one is verified, Resend's test sender only reaches the Resend account's own address. |
+| `KLAVIYO_PRIVATE_API_KEY` | Secret. A Klaviyo private key with lists, profiles and subscriptions write access: mailing-list sign-ups go to Klaviyo with email marketing consent. |
+| `KLAVIYO_LIST_ID` | The Klaviyo list they join. With double opt-in on, Klaviyo sends the confirmation email. |
+| `NEWSLETTER_WEBHOOK_URL` | Also (or instead) POSTs sign-ups as JSON to a webhook: Mailchimp, Zapier, Make or your own endpoint. With neither this nor Klaviyo, the form says sign-up isn't connected yet. |
+| `ENQUIRY_WEBHOOK_URL` | Also (or instead) POSTs enquiries as JSON (`{ kind, form, fields, submittedAt }`) to a webhook, e.g. Zapier or Make into a spreadsheet. With neither this nor Resend, the forms say enquiries aren't connected yet. |
 | `SITE_URL` | The real public address, e.g. `https://clubcasa.com.au`. Canonical links, the sitemap and structured data use it, and every other host (previews, share copies) tells search engines not to index it. Without it, pages use the address they were requested on. |
 | `GA_MEASUREMENT_ID` | Google Analytics 4 measurement ID (`G-…`). Without it Google Analytics stays off. |
 | `GOOGLE_SITE_VERIFICATION` | The `content` of Search Console's HTML-tag verification. |

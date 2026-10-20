@@ -21,11 +21,12 @@ import { SiteAnalytics, SiteHead } from './components/SiteMeta'
 import { Backdrop } from './components/Stages'
 import { moodCss, useRouteMood } from './lib/mood'
 import { MoodProvider } from './lib/MoodProvider'
+import { getContact } from './content/content.server'
 import { siteConfig } from './lib/site.server'
 
-/** The site's address and analytics settings (see lib/site.server.ts). */
-export function loader({ request }: Route.LoaderArgs) {
-  return siteConfig(request)
+/** The site's address and analytics settings (see lib/site.server.ts), and the contact details every page shows. */
+export async function loader({ request }: Route.LoaderArgs) {
+  return { ...siteConfig(request), contact: await getContact() }
 }
 
 // The settings don't change from page to page, so they're fetched once.

@@ -44,6 +44,8 @@ export interface Night {
   lineupConfirmed?: boolean
   /** External ticketing link. Without one the page points people to the mailing list. */
   ticketUrl?: string
+  /** The cheapest ticket in AUD, once prices are set. Until then pages show the price as to be confirmed. */
+  priceFrom?: number
   status: NightStatus
 }
 
