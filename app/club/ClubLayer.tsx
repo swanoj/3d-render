@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { track } from '../lib/analytics'
 import { casaSound } from '../lib/casaSound'
 import { gsap } from '../lib/gsap'
 import { useRadio, useReducedMotion, useWebGLSupport } from '../lib/hooks'
@@ -54,9 +55,11 @@ function ClubBar({ onDrop, still }: { onDrop: () => void; still: boolean }) {
   const share = async () => {
     const url = `${window.location.origin}/#club`
     const data = { title: 'Club Casa', text: 'Hold the door. This website turns into a club.', url }
+    const shared = (method: string) => track('share', { method, content_type: 'club', item_id: '/#club' })
     if (navigator.share) {
       try {
         await navigator.share(data)
+        shared('share_sheet')
       } catch {
         // Closed without sharing.
       }
@@ -64,6 +67,7 @@ function ClubBar({ onDrop, still }: { onDrop: () => void; still: boolean }) {
     }
     try {
       await navigator.clipboard.writeText(url)
+      shared('copy_link')
       setCopied(true)
       window.setTimeout(() => setCopied(false), 2200)
     } catch {
@@ -174,6 +178,8 @@ export function ClubLayer() {
     else if (phase === 'open') root.dataset.club = 'on'
     else delete root.dataset.club
     if (phase !== 'open') return
+    // Counted for analytics: how many find the door, and how many come in through a shared link.
+    track('club_open', { method: club.viaLink ? 'link' : 'door' })
     const title = document.title
     document.title = TITLE
     const onKey = (event: KeyboardEvent) => {

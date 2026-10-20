@@ -75,6 +75,11 @@ class Club {
     this.wake()
   }
 
+  /** Whether this visit came in through a shared link (/#club) rather than someone finding the door. */
+  get viaLink() {
+    return this.invited
+  }
+
   /** Opens up with nobody holding the door: for a shared link. */
   invite() {
     this.invited = true

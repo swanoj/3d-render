@@ -116,12 +116,50 @@ From the official Club Casa Brand Guideline (Alicyte Design):
 | `GA_MEASUREMENT_ID` | Google Analytics 4 measurement ID (`G-…`). Without it Google Analytics stays off. |
 | `GOOGLE_SITE_VERIFICATION` | The `content` of Search Console's HTML-tag verification. |
 | `BING_SITE_VERIFICATION` | The `content` of Bing Webmaster Tools' `msvalidate.01` tag. |
+| `GTM_CONTAINER_ID` | Google Tag Manager container (`GTM-…`). Loads Tag Manager on every page; see [Tag Manager and ad pixels](#tag-manager-and-ad-pixels). |
+| `GOOGLE_ADS_ID` | Google Ads tag (`AW-…`), for remarketing audiences. |
+| `META_PIXEL_ID` | Meta Pixel ID (Facebook and Instagram ads), the number in Meta Events Manager. |
+| `TIKTOK_PIXEL_ID` | TikTok Pixel ID, from TikTok Events Manager. |
+| `AD_CONSENT` | `denied` keeps Google's advertising cookies off even with the tags above set (they're granted once any is set, otherwise). |
 
 ## Search, AI assistants and analytics
 
 - **For search engines:** a canonical link, share card (`public/share/club-casa.png`, or the event's poster) and Open Graph tags on every page; `/sitemap.xml` and `/robots.txt`, generated from the content; and schema.org data: the club, the site and the weekly series on the home page, the series with every coming night on `/events`, each night (venue, times, line-up, tickets) with breadcrumbs on its page, the FAQs, and each act.
 - **For AI assistants:** `/llms.txt` sums up the club in plain Markdown (the facts, the coming nights, the answered FAQs and what isn't announced yet), and `robots.txt` names the AI search and training crawlers so they're explicitly welcome. Pages are server-rendered, so crawlers that don't run JavaScript read everything.
-- **Analytics:** Vercel Web Analytics and Speed Insights (switch both on in the Vercel project's Analytics and Speed Insights tabs), and Google Analytics 4 with `GA_MEASUREMENT_ID`. GA counts page views itself as the address changes: leave Enhanced measurement on, as it is by default. Key moments go to both: `ticket_click`, `sign_up` (the mailing list), `generate_lead` (birthday, booth, careers and contact enquiries, with the form), `share` and `add_to_calendar`. Mark `ticket_click`, `sign_up` and `generate_lead` as key events in GA. Consent defaults allow measurement only, with no advertising cookies.
+- **Analytics:** Vercel Web Analytics and Speed Insights (switch both on in the Vercel project's Analytics and Speed Insights tabs), and Google Analytics 4 with `GA_MEASUREMENT_ID`. GA counts page views itself as the address changes: leave Enhanced measurement on, as it is by default. Key moments go to both: `ticket_click`, `sign_up` (the mailing list), `generate_lead` (birthday, booth, careers and contact enquiries, with the form), `share` and `add_to_calendar`. Mark `ticket_click`, `sign_up` and `generate_lead` as key events in GA. Consent defaults allow measurement only, with no advertising cookies, until an ad tag is set (below).
+
+## Tag Manager and ad pixels
+
+Each one switches on by pasting its ID into an environment variable. Nothing in the code needs to change, and a tag whose variable is missing (or doesn't look like that platform's ID) stays off.
+
+| Paste this | Into | Where to find it |
+| --- | --- | --- |
+| Google Tag Manager container ID, `GTM-XXXXXXX` | `GTM_CONTAINER_ID` | Tag Manager: the ID at the top of the workspace |
+| Meta Pixel ID, e.g. `1234567890123456` | `META_PIXEL_ID` | Meta Events Manager → Data sources → the pixel → Settings |
+| TikTok Pixel ID, e.g. `CABCDEFGHIJ1234567890` | `TIKTOK_PIXEL_ID` | TikTok Ads Manager → Tools → Events → Web events → the pixel |
+| Google Ads tag ID, `AW-123456789` | `GOOGLE_ADS_ID` | Google Ads → Tools → Data manager → Google tag |
+| GA4 measurement ID, `G-XXXXXXXXXX` | `GA_MEASUREMENT_ID` | Google Analytics → Admin → Data streams → the web stream |
+
+**On Vercel:** open the project (`club-casa-v2` for the share link, `3d-render` for the main site) → **Settings → Environment Variables**, add each name and ID for Production (and Preview, to test on preview links), save, then **Deployments → ⋯ → Redeploy** the latest deployment, because variables only reach a new deployment. **Locally:** copy `.env.example` to `.env` and fill it in.
+
+What reaches each one, besides page views (counted on every page, including the ones visitors move to without the page reloading):
+
+| On the site | Google Analytics / Tag Manager | Meta Pixel | TikTok Pixel |
+| --- | --- | --- | --- |
+| Clicking **Get tickets** (to the ticketing site) | `ticket_click` | `InitiateCheckout` | `InitiateCheckout` |
+| Sending a birthday, booth, careers or contact enquiry | `generate_lead` | `Lead` | `SubmitForm` |
+| Joining the mailing list | `sign_up` | `CompleteRegistration` | `CompleteRegistration` |
+| Sharing a page or the club | `share` | `Share` (custom) | |
+| Adding a night to a calendar | `add_to_calendar` | `AddToCalendar` (custom) | |
+| Getting into the club (the easter egg), by the door or a shared link | `club_open` | `ClubOpen` (custom) | |
+
+The details travel with each event: `form` (`birthdays`, `booths`, `careers`, `contact`), `event` (the night), `method`, `content_type` and `item_id`. Meta and TikTok get them as `content_name`.
+
+**In Tag Manager:** every key moment is a dataLayer event with the names above, so a Custom Event trigger on `ticket_click`, say, can fire any tag (LinkedIn, Snapchat, Pinterest, a Google Ads conversion). Pages after the first push a `page_view` event, so fire page-view tags on **All Pages** plus the custom event `page_view`. Set Google Analytics up in one place only: either `GA_MEASUREMENT_ID` here or a Google tag inside Tag Manager, not both, or GA counts everything twice. The same goes for adding the Meta or TikTok pixel inside Tag Manager as well as here.
+
+**Google Ads conversions:** link Google Ads to Google Analytics and import the key events (`ticket_click`, `generate_lead`, `sign_up`), or build conversion tags in Tag Manager on the events above. The `GOOGLE_ADS_ID` tag itself is for remarketing audiences.
+
+**Consent:** with any ad tag set, Google's advertising consent is granted by default (Australian privacy law doesn't currently require opt-in for these). Set `AD_CONSENT=denied` to keep Google's ad cookies off. The Meta and TikTok pixels don't follow Google's consent settings, so the privacy policy should say the site uses them. A consent banner would be the next step if the club ever advertises to the EU or UK.
 
 ## Deploy
 

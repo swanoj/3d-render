@@ -1,5 +1,6 @@
 import { Analytics } from '@vercel/analytics/react'
 import { SpeedInsights } from '@vercel/speed-insights/react'
+import { MarketingTags } from './MarketingTags'
 import { useLocation, useMatches } from 'react-router'
 import type { SiteConfig } from '../lib/site.server'
 import { homeJsonLd, type Contact } from '../lib/structuredData'
@@ -58,7 +59,8 @@ function GoogleAnalytics({ id }: { id: string }) {
 
 /**
  * Tags every page shares, in the document head: the canonical address, the share picture, whether search engines
- * may index this host, site verification, the home page's structured data and Google Analytics.
+ * may index this host, site verification, the home page's structured data, Google Analytics, and Tag Manager and
+ * the ad pixels.
  */
 export function SiteHead({ site }: { site?: SiteConfig & { contact?: Contact } }) {
   const { pathname } = useLocation()
@@ -82,6 +84,7 @@ export function SiteHead({ site }: { site?: SiteConfig & { contact?: Contact } }
       {site.verification.bing && <meta name="msvalidate.01" content={site.verification.bing} />}
       {pathname === '/' && <JsonLd data={homeJsonLd(site.origin, site.contact)} />}
       {site.googleAnalyticsId && <GoogleAnalytics id={site.googleAnalyticsId} />}
+      <MarketingTags tags={site.tags} googleAnalytics={Boolean(site.googleAnalyticsId)} />
     </>
   )
 }
