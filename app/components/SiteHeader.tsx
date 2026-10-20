@@ -2,11 +2,24 @@ import { useEffect, useState } from 'react'
 import { Link, NavLink, useLocation } from 'react-router'
 import { brand } from '../brand/brand'
 import { Mark } from './Mark'
+import { NavPeek } from './NavPeek'
+import type { PlanKind } from './PlanArt'
 import { RadioControl } from './Radio'
 import { Sheet } from './Sheet'
 
+/** Nav links with a little show behind them on hover. */
+const PEEKS: Record<string, PlanKind> = { '/tickets': 'tickets', '/birthdays': 'birthdays', '/booths': 'booths' }
+
 export function SiteHeader() {
   const { pathname } = useLocation()
+  // Which link's card is showing: a link's path, "pill" for Get tickets, or none.
+  const [peek, setPeek] = useState<string | null>(null)
+  const peekProps = (key: string) => ({
+    onMouseEnter: () => setPeek(key),
+    onMouseLeave: () => setPeek((current) => (current === key ? null : current)),
+    onFocus: () => setPeek(key),
+    onBlur: () => setPeek((current) => (current === key ? null : current)),
+  })
   // The menu remembers the page it was opened on, so any navigation (a link, the back button) closes it.
   const [menuPath, setMenuPath] = useState<string | null>(null)
   const menuOpen = menuPath === pathname
@@ -26,19 +39,32 @@ export function SiteHeader() {
           <Mark name="logo" />
         </Link>
         <nav className="site-nav" aria-label="Main">
-          {brand.nav.map((item) => (
-            <NavLink key={item.to} to={item.to} className="nav-link" viewTransition>
-              {({ isActive }) => (
-                <>
-                  {item.label}
-                  {isActive && <Mark name="oval" className="nav-circle" />}
-                </>
-              )}
-            </NavLink>
-          ))}
-          <Link to="/tickets" className="pill" viewTransition>
-            Get tickets
-          </Link>
+          {brand.nav.map((item) => {
+            const kind = PEEKS[item.to]
+            const link = (
+              <NavLink key={item.to} to={item.to} className="nav-link" viewTransition>
+                {({ isActive }) => (
+                  <>
+                    {item.label}
+                    {isActive && <Mark name="oval" className="nav-circle" />}
+                  </>
+                )}
+              </NavLink>
+            )
+            if (!kind) return link
+            return (
+              <span key={item.to} className="nav-item" {...peekProps(item.to)}>
+                {link}
+                <NavPeek kind={kind} active={peek === item.to} />
+              </span>
+            )
+          })}
+          <span className="nav-item" {...peekProps('pill')}>
+            <Link to="/tickets" className="pill" viewTransition>
+              Get tickets
+            </Link>
+            <NavPeek kind="tickets" active={peek === 'pill'} />
+          </span>
         </nav>
         {/* In the header, so it keeps playing as you move between pages. */}
         <RadioControl />

@@ -273,6 +273,11 @@ address {
   z-index: 1;
 }
 
+/* Cards wait off-tilt before they scroll in; clip that here too, since phones don't always honour it on body. */
+.site-main {
+  overflow-x: clip;
+}
+
 .surface {
   position: relative;
   background: var(--bg);
@@ -2375,6 +2380,81 @@ html:has(.sheet[open]) .casa {
   }
 }
 
+/* ---------- v2: the little shows (Tickets, Birthdays, Booths) ---------- */
+
+.plan-art {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: hidden;
+}
+
+/* The ticket machine's slot and the booth's plinth: near-black, with a faint rim so they read on charcoal too. */
+.plan-art .art-slot {
+  fill: #141414;
+  stroke: rgb(237 225 211 / 0.22);
+  stroke-width: 1;
+}
+
+.plan-card-art {
+  margin: -8px -6px 4px;
+  width: calc(100% + 12px);
+}
+
+/* Header links with a card hanging under them on hover. */
+.nav-item {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.nav-peek {
+  position: absolute;
+  top: calc(100% + 20px);
+  left: 50%;
+  z-index: 30;
+  width: 272px;
+  margin-left: -136px;
+  padding: 12px 12px 10px;
+  border-radius: 18px;
+  background: var(--charcoal);
+  color: var(--cream);
+  box-shadow:
+    0 0 0 1px rgb(237 225 211 / 0.16),
+    0 26px 60px rgb(0 0 0 / 0.5);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* The two strings it hangs from, up to the link. */
+.nav-peek-string {
+  position: absolute;
+  top: -20px;
+  right: 34%;
+  left: 34%;
+  height: 20px;
+  border-right: 1.5px solid rgb(237 225 211 / 0.45);
+  border-left: 1.5px solid rgb(237 225 211 / 0.45);
+}
+
+.nav-peek .plan-art {
+  border-radius: 10px;
+}
+
+.nav-peek-caption {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  text-align: center;
+  opacity: 0.8;
+}
+
+/* Letters that stamp down one at a time (SplitText adds the pieces). */
+.stamp-char {
+  will-change: transform;
+}
+
 /* ---------- v2: smaller screens ---------- */
 
 @media (max-width: 1180px) {
@@ -2488,14 +2568,6 @@ html:has(.sheet[open]) .casa {
 
   .film-note {
     display: none;
-  }
-
-  .footer-main {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .footer-logo {
-    grid-column: 1 / -1;
   }
 }
 

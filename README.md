@@ -17,6 +17,7 @@ Built from the official Club Casa Brand Guideline and branding pack (Alicyte Des
 - **FAQs** (`/faqs`): an accordion of the questions from the brief, with FAQ data for search.
 - **Casa**, the mascot (previously Otto), walks along the bottom edge of every page: small and unhurried, stopping now and then to look around. Tap Casa for a hello. The waddle is two poses swapped in steps, like an old GIF, and Casa sits still under "reduce motion".
 - **Hand-drawn layer:** marker underlines, rings and notes that draw themselves on scroll, the tilted logo "boiling" like a hand-drawn animation, and the emblem turning in clicks like a record label.
+- **Casa's little shows** (GSAP): hover Tickets, Birthdays or Booths, in the header or under "Plan your night", and Casa performs. A Club Casa ticket rises out of a slot, gets Casa's "approved" stamp and loses its stub; bunting drops, Casa pops up in a party hat and the confetti goes off; the velvet rope unhooks, Casa walks into a booth and sits, the lamp comes on and the card says Reserved. On phones they play as they scroll into view. Headings stamp down letter by letter, cards drop in as you scroll and the hero drifts away. Under "reduce motion" everything shows its final frame.
 - **Wordmark wall** behind every page, with warm lamp glows that fade in and out (no flashing).
 - **Casa Radio** in the site header: tap to play four grooves synthesised in the browser; it keeps playing from page to page, with a 3D turntable in the corner.
 - **Line-up reveals, artist pages and night-of mode** carry over from v1: names can go up in phases, acts link to their pages, and from doors until 5AM an event page shows who's on now. Add `?now=` to an address to preview a moment, e.g. `/?now=2026-10-24T23:30:00%2B11:00`.
@@ -50,6 +51,7 @@ npm start        # serve the build on http://localhost:3000
 | Photos from each night | `app/photos/<event slug>/` (see the README there) |
 | Logos, emblem and mascot (official PNGs) | `public/brand/official/` |
 | Marker strokes | `public/brand/*.svg` |
+| Casa's shows (tickets, birthdays, booths) and the scroll effects | `app/components/PlanArt.tsx`, `NavPeek.tsx`, `ScrollFx.tsx`, `app/lib/scrollFx.ts` |
 | Styles | `app/app.css` |
 
 **The calendar fills itself in.** Club Casa runs every Saturday, so the site lists the next eight Saturdays as placeholders ("Club Casa", line-up to be announced, tickets soon), each with one of the brand's posts as its artwork. To announce a night, add it to `app/content/nights.ts` under its date slug: whatever you give it (title, artwork, line-up, set times, `ticketUrl`) replaces the placeholder for that Saturday. Set `status: 'on-sale'` with a `ticketUrl` to turn its button into **Get tickets**, and `lineupConfirmed: true` once the line-up is real bookings. One-off nights on other days work the same way.

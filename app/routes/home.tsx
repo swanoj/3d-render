@@ -1,3 +1,4 @@
+import { useRef, useState } from 'react'
 import { Link } from 'react-router'
 import type { Route } from './+types/home'
 import { brand } from '../brand/brand'
@@ -5,9 +6,12 @@ import { EventCard, EventFeature } from '../components/EventCard'
 import { FilmStrip } from '../components/FilmStrip'
 import { Mark } from '../components/Mark'
 import { OnNow } from '../components/NightOf'
+import { PlanArt, type PlanKind } from '../components/PlanArt'
 import { Note, Scribble } from '../components/Scribble'
+import { StampedTitle } from '../components/ScrollFx'
 import { getHouse, getNights } from '../content/content.server'
 import { useNow } from '../lib/hooks'
+import { useHeroParallax, useScrollReveal } from '../lib/scrollFx'
 import { nightPhase, requestNow } from '../lib/nightOf'
 import { seo } from '../lib/seo'
 
@@ -22,27 +26,51 @@ export async function loader({ request }: Route.LoaderArgs) {
   return { upcoming, now, offset: now - Date.now(), photos: house.photos, mood: brand.defaultMood }
 }
 
-/** Ways to plan a night, each with its own page. */
-const PLANS = [
+/** Ways to plan a night, each with its own page and its own little show on hover. */
+const PLANS: { kind: PlanKind; to: string; title: string; text: string; action: string }[] = [
   {
+    kind: 'tickets',
     to: '/tickets',
     title: 'Tickets',
     text: 'Entry for every Saturday, online.',
     action: 'Get tickets',
   },
   {
+    kind: 'birthdays',
     to: '/birthdays',
     title: 'Birthdays',
     text: 'Celebrating? Tell us about the night you have in mind.',
     action: 'Plan a birthday',
   },
   {
+    kind: 'booths',
     to: '/booths',
     title: 'Booths',
     text: 'A booth for you and your friends, for the whole night.',
     action: 'Book a booth',
   },
-] as const
+]
+
+/** A way to plan the night: its show plays while the card is hovered or focused (or as it scrolls in, on touch). */
+function PlanCard({ plan }: { plan: (typeof PLANS)[number] }) {
+  const [active, setActive] = useState(false)
+  return (
+    <Link
+      to={plan.to}
+      className="plan-card"
+      viewTransition
+      onMouseEnter={() => setActive(true)}
+      onMouseLeave={() => setActive(false)}
+      onFocus={() => setActive(true)}
+      onBlur={() => setActive(false)}
+    >
+      <PlanArt kind={plan.kind} active={active} autoplay className="plan-card-art" />
+      <span className="hand plan-title">{plan.title}</span>
+      <span className="mono plan-text">{plan.text}</span>
+      <span className="plan-action">{plan.action} →</span>
+    </Link>
+  )
+}
 
 export default function Home({ loaderData }: Route.ComponentProps) {
   const { upcoming, offset, photos } = loaderData
@@ -51,10 +79,14 @@ export default function Home({ loaderData }: Route.ComponentProps) {
   const now = useNow(loaderData.now, { every: 15_000, offset })
   const [next, ...later] = upcoming
   const live = next ? nightPhase(next.startsAt, now) === 'live' : false
+  const hero = useRef<HTMLElement>(null)
+  const page = useRef<HTMLDivElement>(null)
+  useHeroParallax(hero)
+  useScrollReveal(page, '.event-feature, .event-card, .plan-card, .about-art, .venue-lockup')
 
   return (
-    <>
-      <section className="hero" aria-labelledby="hero-title">
+    <div ref={page} className="home">
+      <section ref={hero} className="hero" aria-labelledby="hero-title">
         <h1 id="hero-title" className="hero-logo">
           <Mark name="logo-tilted" label={brand.name} className="boil" />
         </h1>
@@ -76,10 +108,13 @@ export default function Home({ loaderData }: Route.ComponentProps) {
 
       <section id="events" className="surface surface--charcoal block events-block" aria-labelledby="events-title">
         <div className="block-heading">
-          <h2 id="events-title" className="hand block-title">
+          <StampedTitle
+            id="events-title"
+            className="hand block-title"
+            extra={<Scribble kind="underline" className="block-title-underline" />}
+          >
             Upcoming events
-            <Scribble kind="underline" className="block-title-underline" />
-          </h2>
+          </StampedTitle>
           <Link to="/events" className="text-link" viewTransition>
             All events →
           </Link>
@@ -123,18 +158,14 @@ export default function Home({ loaderData }: Route.ComponentProps) {
 
       <section className="surface surface--charcoal block plans" aria-labelledby="plans-title">
         <div className="block-heading">
-          <h2 id="plans-title" className="hand block-title">
+          <StampedTitle id="plans-title" className="hand block-title">
             Plan your night
-          </h2>
+          </StampedTitle>
         </div>
         <ul className="plan-grid">
           {PLANS.map((plan) => (
             <li key={plan.to}>
-              <Link to={plan.to} className="plan-card" viewTransition>
-                <span className="hand plan-title">{plan.title}</span>
-                <span className="mono plan-text">{plan.text}</span>
-                <span className="plan-action">{plan.action} →</span>
-              </Link>
+              <PlanCard plan={plan} />
             </li>
           ))}
         </ul>
@@ -182,6 +213,6 @@ export default function Home({ loaderData }: Route.ComponentProps) {
           </div>
         </div>
       </section>
-    </>
+    </div>
   )
 }
