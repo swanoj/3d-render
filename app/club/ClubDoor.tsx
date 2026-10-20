@@ -66,16 +66,16 @@ export function ClubDoor({ hero }: { hero: RefObject<HTMLElement | null> }) {
     }
   }, [hero])
 
-  // The swing follows the hold, frame by frame. Once it's all over, CSS swings it shut.
+  // The swing follows the hold, frame by frame, while it's moving. Once it's all over, CSS swings it shut.
   useEffect(() => {
     const door = root.current
     if (!door) return
-    if (closed) {
-      door.style.setProperty('--open', '0')
+    if (phase !== 'holding') {
+      door.style.setProperty('--open', phase === 'open' || phase === 'leaving' ? '1' : '0')
       return
     }
     return club.onTick(() => door.style.setProperty('--open', club.progress.toFixed(3)))
-  }, [closed])
+  }, [phase])
 
   // A shared link (/#club) opens the door by itself.
   useEffect(() => {

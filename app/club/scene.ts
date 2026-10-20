@@ -494,6 +494,7 @@ export async function createScene(
   let slowFrames = 0
   let downgraded = false
   let gone = false
+  let cleared = false
 
   const fire = (big: boolean) => {
     if (still) return
@@ -624,6 +625,17 @@ export async function createScene(
       club.setInside(landed(crowd.outs, fill.value) + congaGeometry.instanceCount)
     }
 
+    // Nothing to see (the door swung shut again before anyone got out): clear once, then rest.
+    const idle = !open && fill.value === 0 && clubLevel.value < 0.002 && congaGeometry.instanceCount === 0
+    if (idle) {
+      if (!cleared) {
+        roomRenderer.clear()
+        frontRenderer.clear()
+        cleared = true
+      }
+      return
+    }
+    cleared = false
     roomRenderer.render(roomScene, camera)
     frontRenderer.render(frontScene, camera)
 
