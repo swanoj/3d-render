@@ -36,9 +36,9 @@ export function SiteHeader() {
               )}
             </NavLink>
           ))}
-          <a href="#list" className="pill">
-            Get on the list
-          </a>
+          <Link to="/tickets" className="pill" viewTransition>
+            Get tickets
+          </Link>
         </nav>
         {/* In the header, so it keeps playing as you move between pages. */}
         <RadioControl />
@@ -64,20 +64,25 @@ export function SiteHeader() {
           </button>
         </div>
         <nav aria-label="Menu" className="menu-nav">
-          {[{ label: 'Home', to: '/' }, ...brand.nav].map((item) => (
+          {[{ label: 'Home', to: '/' }, ...brand.nav, ...brand.moreNav].map((item) => (
             <NavLink key={item.to} to={item.to} end={item.to === '/'} className="menu-link" viewTransition>
               {({ isActive }) => (
                 <>
                   {item.label}
-                  {isActive && <Mark name="circle" className="menu-circle" />}
+                  {isActive && <Mark name="oval" className="menu-circle" />}
                 </>
               )}
             </NavLink>
           ))}
         </nav>
-        <p className="menu-foot mono">
-          {brand.venue.name} · {brand.venue.street}, {brand.venue.locality}
-        </p>
+        <div className="menu-foot">
+          <Link to="/tickets" className="button button--solid" viewTransition>
+            Get tickets
+          </Link>
+          <p className="mono">
+            {brand.hours.days} · {brand.hours.time} · {brand.venue.host}, {brand.venue.street}, {brand.venue.locality}
+          </p>
+        </div>
       </Sheet>
     </>
   )

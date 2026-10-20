@@ -2,22 +2,33 @@ import type { MoodId } from '../brand/brand'
 
 export type NightStatus = 'announced' | 'on-sale' | 'sold-out'
 
-/** Hand-drawn doodles that stamp each night (stand-ins until the weekly mascot artwork exists). */
-export type MotifName = 'tv' | 'lamp' | 'plant' | 'record' | 'mirror' | 'star'
+/** Hand-drawn doodles from the concept deck, still used as small accents. */
+export type MotifName = 'lamp' | 'plant' | 'record' | 'mirror' | 'star'
+
+/** An event's poster. Without one, the event takes the next of the brand's weekly posts (content/artwork.ts). */
+export interface Artwork {
+  /** Full size, 4:5 (e.g. 1080 × 1350). */
+  src: string
+  /** Half size, for cards. */
+  small?: string
+  alt: string
+}
 
 export interface Night {
   /** URL slug; the date keeps it unique, e.g. "2026-10-16". */
   slug: string
-  /** Shown above the date, e.g. "Opening night". */
+  /** Shown above the date, e.g. "Club Casa" or "Opening night". */
   title: string
   /** Doors, as an ISO timestamp with the Melbourne offset: "2026-10-16T22:00:00+11:00". */
   startsAt: string
-  /** How the night ends on the poster: "Late", "3AM". */
+  /** How the night ends on the poster: "5AM", "Late". */
   closes: string
   /** Colourway. */
   mood: MoodId
-  /** The night's hand-drawn stamp. */
-  motif: MotifName
+  /** The event's poster. */
+  artwork?: Artwork
+  /** A Saturday from the weekly rule that nothing has been announced for yet. */
+  placeholder?: boolean
   /** "vinyl" marks the monthly all-vinyl nights. */
   format?: 'vinyl'
   /** Acts in poster order. Empty until the line-up is announced. */

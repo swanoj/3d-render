@@ -24,8 +24,8 @@ import {
   type DeckIndex,
   type DeckState,
 } from '../../lib/casaSound'
-import { loadTvAssets, type TvAssets } from '../channels'
-import { glowTexture } from '../room/textures'
+import { loadMarkAssets, type MarkAssets } from '../assets'
+import { glowTexture } from '../textures'
 import {
   ARM_HEIGHT,
   ARM_LENGTH,
@@ -200,13 +200,13 @@ export function Turntable({ deck, index, pageShadow = true, playable = false, on
     pressed: 0,
   })
   const drag = useRef<{ part: Dragged; pointer: number } | null>(null)
-  const [assets, setAssets] = useState<TvAssets | null>(null)
+  const [assets, setAssets] = useState<MarkAssets | null>(null)
   const [hover, setHover] = useState<Part | null>(null)
   const [grabbing, setGrabbing] = useState(false)
 
   useEffect(() => {
     let live = true
-    loadTvAssets().then((loaded) => {
+    loadMarkAssets().then((loaded) => {
       if (live) setAssets(loaded)
     })
     return () => {

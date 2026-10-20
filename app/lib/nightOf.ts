@@ -1,5 +1,5 @@
-/** A night counts as on from doors until 8 hours later. */
-export const RUNNING_TIME = 8 * 60 * 60 * 1000
+/** A night counts as on from doors until 7 hours later: 10PM until 5AM. */
+export const RUNNING_TIME = 7 * 60 * 60 * 1000
 
 export type NightPhase = 'upcoming' | 'live' | 'past'
 

@@ -2,11 +2,22 @@ import { index, route, type RouteConfig } from '@react-router/dev/routes'
 
 export default [
   index('routes/home.tsx'),
-  route('nights', 'routes/nights.tsx'),
-  route('nights/:slug', 'routes/night.tsx'),
-  route('nights/:slug/calendar.ics', 'routes/night-calendar.ts'),
+  route('events', 'routes/events.tsx'),
+  route('events/:slug', 'routes/event.tsx'),
+  route('events/:slug/calendar.ics', 'routes/event-calendar.ts'),
+  route('tickets', 'routes/tickets.tsx'),
+  route('birthdays', 'routes/birthdays.tsx'),
+  route('booths', 'routes/booths.tsx'),
+  route('careers', 'routes/careers.tsx'),
+  route('contact', 'routes/contact.tsx'),
+  route('faqs', 'routes/faqs.tsx'),
   route('artists/:slug', 'routes/artist.tsx'),
-  route('info', 'routes/info.tsx'),
   route('api/newsletter', 'routes/api.newsletter.ts'),
+  route('api/enquiry', 'routes/api.enquiry.ts'),
+  // v1 addresses, so old links and shared posts still land somewhere sensible.
+  route('nights', 'routes/legacy.ts', { id: 'legacy-nights' }),
+  route('nights/:slug', 'routes/legacy.ts', { id: 'legacy-night' }),
+  route('nights/:slug/calendar.ics', 'routes/legacy.ts', { id: 'legacy-calendar' }),
+  route('info', 'routes/legacy.ts', { id: 'legacy-info' }),
   route('*', 'routes/not-found.tsx'),
 ] satisfies RouteConfig

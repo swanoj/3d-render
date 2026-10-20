@@ -1,12 +1,19 @@
 import { isRouteErrorResponse, Link, useRouteError } from 'react-router'
+import { brand } from '../brand/brand'
+import { Mark } from './Mark'
 
 /** The not-found and error message, inside the site layout. */
 export function ErrorMessage({ notFound }: { notFound: boolean }) {
   return (
     <section className="error-page">
+      <Mark name="mascot" className="error-mascot" />
       <p className="label">{notFound ? 'Error 404' : 'Something went wrong'}</p>
       <h1 className="hand error-title">{notFound ? 'Wrong room' : 'Lights up'}</h1>
-      <p className="mono">{notFound ? 'That page doesn’t exist, or it has moved.' : 'Please try again in a moment.'}</p>
+      <p className="mono">
+        {notFound
+          ? `${brand.mascot.name} was here, but this page wasn’t. It doesn’t exist, or it has moved.`
+          : 'Please try again in a moment.'}
+      </p>
       <Link to="/" className="button button--solid" viewTransition>
         Back home
       </Link>

@@ -40,21 +40,8 @@ const scribbles = {
   },
 } as const
 
-/** Original doodle stamps, one per night, until the weekly mascot artwork exists. */
+/** Doodles from the concept deck: lamps, plants, records, a mirror, a star. */
 const motifs: Record<MotifName, { viewBox: string; strokes: string[] }> = {
-  tv: {
-    viewBox: '0 0 100 100',
-    strokes: [
-      'M18 32 C 17 30, 20 28, 24 28 L 80 27 C 84 27, 86 30, 86 34 L 85 78 C 85 82, 82 84, 78 84 L 24 85 C 20 85, 17 82, 17 78 Z',
-      'M27 36 L 63 35 C 66 35, 67 37, 67 40 L 66 71 C 66 74, 64 75, 61 75 L 28 76 C 25 76, 24 74, 24 71 L 24 40 C 24 37, 25 36, 27 36 Z',
-      'M72 42 C 72 39, 80 39, 80 42 C 80 45, 72 45, 72 42 Z',
-      'M72 58 C 72 55, 80 55, 80 58 C 80 61, 72 61, 72 58 Z',
-      'M42 27 L 30 10',
-      'M56 27 L 70 8',
-      'M26 85 L 23 94',
-      'M78 84 L 81 93',
-    ],
-  },
   lamp: {
     viewBox: '0 0 100 100',
     strokes: [

@@ -1,25 +1,28 @@
 # Club Casa
 
-The website for Club Casa, a club night upstairs at the Prince Bandroom, 29 Fitzroy Street, St Kilda.
+The website for Club Casa, every Saturday from 10PM until 5AM at the Prince Bandroom, 29 Fitzroy Street, St Kilda.
 
 Server-rendered with React Router 7 (the framework Remix became, which Shopify Hydrogen also runs on), with a WebGL "wordmark wall" behind every page, drawn with React Three Fiber, and deployed on Vercel.
 
-## What's on the site
+## What's on the site (v2)
 
-Built from the Alicyte Design asset set and the Prince Bandroom concept deck:
+Built from the official Club Casa Brand Guideline and branding pack (Alicyte Design), following the website brief: classy, minimal and analogue, with events and tickets first.
 
-- **Casa TV** (home page): a 3D corner of the room with a walnut console TV, a floor lamp and a table lamp whose light slowly breathes, a plant, hanging records, a crate of records, a security camera on the ceiling, and dust and haze in the lamplight. The section pins while you scroll, the site header steps aside, and the camera walks in from the doorway until the set fills the screen. Tap the set, use CH − / CH +, or press ← / → or 1–6 to change channel: next night, line-up, house rules, vinyl nights, test card, and Casa Cam, a live picture of the room from the ceiling camera (the set is in its own shot, so it shows a tunnel of itself). Click a lamp, or press L, to switch the lamps. The Sound button, the set's volume knob or M turns on the room's sound: the club through the wall, static between channels, crackle on the vinyl channel. It's synthesised with Web Audio in `app/lib/casaSound.ts`, and the lamps swell gently with each kick. The room renders straight to the screen with no post-processing (bloom smeared invalid pixels from some Mac GPUs into a black box), and capable devices get a sharper canvas and more haze, stepping down automatically when frames drop (`?quality=low` or `?quality=high` pins it). It loads only when scrolled near, pauses off screen, and falls back to a flat 2D set without WebGL.
-- **Wordmark wall** behind every page, in each night's colourway, with warm lamp glows that fade in and out (no flashing).
-- **Hand-drawn layer:** notes and arrows ("save the date", "pop it in the diary") that draw themselves on scroll, a doodle stamp for each night, a circled "All vinyl" badge, and a handwritten house-rules card on `/info`.
-- **The booth** at the foot of the landing page (`app/three/desk/`): a DJ desk in 3D that fills the screen, with two turntables, a two-channel mixer, headphones and a crate of records under a CLUB CASA neon sign, all playable. The section holds still while you scroll through it: the camera starts low with the neon behind the decks and cranes up over the desk until it's looking down on the decks like the DJ, and the site header steps aside meanwhile. Landscape screens get both decks and the mixer; a phone held upright gets deck 1 at the front with the crate behind it, so both are big. Scroll, swipe or drag over the crate to dig through the records; press Play and the record comes up out of its sleeve, flies over and lands on the platter of a free deck (the record that was on goes back in its sleeve), the platter spins up and the needle drops. Drag a deck's arm off the record and the music stops; put it down anywhere on the grooves and it plays from there, or back on its rest and the platter stops. Each deck has start/stop, 33/45, a ±8% pitch fader with a BPM display, and a record you can hold and scratch. The mixer's channel faders, crossfader and gain/EQ knobs work (drag a knob up or down; double-click to centre it), and its meters follow each deck. A record dropped on while the other deck plays comes in on its beat. The same controls are there from the keyboard (they appear when focused). The 3D loads as the booth comes near and only draws while it's on screen; leaving the page, deck 2 stops (handing its record to Casa Radio if it was the only one playing) and the mixer goes back to neutral. Without WebGL or with reduced motion, the same controls sit in a plain box.
-- **Casa Radio** in the site header: tap to play, and it keeps playing from page to page. It plays four grooves synthesised in the browser (The house groove, Deep hours, Disco edit and Sunday vinyl) until residents' mixes are added as audio files; Casa Radio is the DJ desk's deck 1. While it's on, the TV's vinyl channel lights an "On air" sign and the lamps pulse to the music. Pressing play brings up a 3D turntable in the corner of the screen (`app/three/turntable/`), which steps aside while the booth is on screen: the platter spins up, the arm lifts, swings over the record and lowers, and the music starts as the needle lands. The needle creeps inwards as the mix plays; on pause the arm goes back to its rest. The turntable stays on every page until closed, and isn't shown without WebGL or with reduced motion.
-- **Line-up reveals:** names can go up in phases. Until its date, a name shows as a marker stroke blacked over it, with a countdown to the next reveal, on the site and on the TV. The name isn't in the page at all before then, so it can't be found in the source.
-- **Artist pages** (`/artists/:slug`): bio, links, their mix on Casa Radio and the nights they play. Names in a line-up link to them.
-- **Night-of mode:** from doors until 8 hours later, the home page, the night's page and the TV switch to "On now", showing who's playing and who's next from the set times. Pages follow the set times while they're open. Add `?now=` to any address to preview a moment, e.g. `/?now=2026-10-16T23:30:00%2B11:00`. A preview never reveals a name before its date.
-- **Film strip** of photos from past nights, faded and grainy, linking to that night's gallery. Until there are photos, the frames show as still developing.
-- **Night pages:** set times, a gallery of prints with a full-screen viewer (← / → to browse), Add to calendar (`/nights/:slug/calendar.ics`), Share (system share sheet, or copies the link), and schema.org event data for search.
-- **Info:** venue, entry, getting there, the house rules and a "Good to know" FAQ, with FAQ data for search.
-- **Page changes** fold the picture into a line and open the next one, like changing channel. All motion is reduced or off under "reduce motion".
+- **Home:** the tilted scribble logo, "A house away from home.", the hours and the way to tickets; then **Upcoming events**, with the next event given the most room and the following Saturdays as cards; the brand statement on cream; **Plan your night** (tickets, birthdays, booths); and where to find us.
+- **Events** (`/events`, `/events/:slug`): every event with its artwork, date, line-up, **View event** and **Get tickets**. An event page has Add to calendar (`/events/:slug/calendar.ics`), Share, the countdown to doors, set times, photos and schema.org event data for search.
+- **Tickets** (`/tickets`): each coming Saturday with its ticket button, and what to know about buying.
+- **Birthdays** (`/birthdays`) and **Booths** (`/booths`): what's on offer and an enquiry form, with the coming Saturdays to choose from.
+- **Join the team** (`/careers`): promoters, hosts and everyone else, with an application form.
+- **Contact** (`/contact`): the venue details, opening hours, getting there and a general enquiry form.
+- **FAQs** (`/faqs`): an accordion of the questions from the brief, with FAQ data for search.
+- **Casa**, the mascot (previously Otto), walks along the bottom edge of every page: small and unhurried, stopping now and then to look around. Tap Casa for a hello. The waddle is two poses swapped in steps, like an old GIF, and Casa sits still under "reduce motion".
+- **Hand-drawn layer:** marker underlines, rings and notes that draw themselves on scroll, the tilted logo "boiling" like a hand-drawn animation, and the emblem turning in clicks like a record label.
+- **Wordmark wall** behind every page, with warm lamp glows that fade in and out (no flashing).
+- **Casa Radio** in the site header: tap to play four grooves synthesised in the browser; it keeps playing from page to page, with a 3D turntable in the corner.
+- **Line-up reveals, artist pages and night-of mode** carry over from v1: names can go up in phases, acts link to their pages, and from doors until 5AM an event page shows who's on now. Add `?now=` to an address to preview a moment, e.g. `/?now=2026-10-24T23:30:00%2B11:00`.
+- v1 addresses redirect: `/nights` → `/events`, `/nights/:slug` → `/events/:slug`, `/info` → `/faqs`.
+
+v2 removes the Casa TV room and the playable DJ desk from v1, for the brief's more minimal approach. Both are in the git history (`main` before the v2 merge).
 
 ## Run it
 
@@ -37,40 +40,40 @@ npm start        # serve the build on http://localhost:3000
 
 | What | Where |
 | --- | --- |
-| Nights: dates, line-ups, reveal phases, set times, colourway, doodle, vinyl nights, ticket links | `app/content/nights.ts` |
+| Events: announced nights, line-ups, reveal phases, set times, artwork, ticket links | `app/content/nights.ts` |
+| The weekly posters used until a night has its own artwork | `app/content/artwork.ts`, images in `public/artwork/` |
+| Brand: palette, colourways, hours, venue, contact email and Instagram, nav, copy | `app/brand/brand.ts` |
+| FAQs and getting there | `app/content/faq.ts` |
+| Enquiry forms (birthdays, booths, careers, contact): fields and messages | `app/content/enquiries.ts` |
 | Artist pages: bio, portrait, links, mix | `app/content/artists.ts` |
-| Casa Radio's mixes and the DJ desk's records (title, groove, sleeve colour) | `app/content/radio.ts` |
-| Photos from each night | `app/photos/<night slug>/` (see the README there) |
-| FAQ and getting there | `app/content/faq.ts` |
-| House rules, "The room" copy | `app/content/house.ts` |
-| Brand: palette, colourways, venue, house copy, nav | `app/brand/brand.ts` |
-| Casa TV channels | `app/three/channels.ts` |
-| Casa TV sound: tempo, chords, levels | `app/lib/casaSound.ts` |
-| Logos and marker strokes | `public/brand/*.svg` |
+| Casa Radio's mixes | `app/content/radio.ts` |
+| Photos from each night | `app/photos/<event slug>/` (see the README there) |
+| Logos, emblem and mascot (official PNGs) | `public/brand/official/` |
+| Marker strokes | `public/brand/*.svg` |
 | Styles | `app/app.css` |
 
-A night stays on the site after it happens and moves to the archive on `/nights`. Add a `ticketUrl` and set `status: 'on-sale'` to turn its button into **Tickets**; until then it points to the mailing list. Set `lineupConfirmed: true` once the line-up is real bookings: until then the names stay out of search results and calendar files, and the page notes "more names soon".
+**The calendar fills itself in.** Club Casa runs every Saturday, so the site lists the next eight Saturdays as placeholders ("Club Casa", line-up to be announced, tickets soon), each with one of the brand's posts as its artwork. To announce a night, add it to `app/content/nights.ts` under its date slug: whatever you give it (title, artwork, line-up, set times, `ticketUrl`) replaces the placeholder for that Saturday. Set `status: 'on-sale'` with a `ticketUrl` to turn its button into **Get tickets**, and `lineupConfirmed: true` once the line-up is real bookings. One-off nights on other days work the same way.
 
-To hold names back, give an act a `phase` and the night a `phases` entry with the date it's revealed: `{ phase: 2, at: '2026-10-02T18:00:00+10:00' }`. Set times (`setTimes`) name the act as it appears in the line-up, and a set by a hidden act stays blacked out until its reveal.
+To hold names back, give an act a `phase` and the night a `phases` entry with the date it's revealed: `{ phase: 2, at: '2026-10-30T18:00:00+11:00' }`.
 
-A mix plays from its `src`, an audio file (MP3 or AAC). Put it in `public/mixes/` (`src: '/mixes/name.mp3'`), or host it anywhere that allows cross-origin reads (`Access-Control-Allow-Origin`), since the lamps listen to it. Without that header the browser won't play it.
-
-The schedule, reveal dates and set times in `app/content/nights.ts`, the artists, the house rules in `app/content/house.ts` and the FAQ in `app/content/faq.ts` are placeholders until they're confirmed.
+**Placeholders.** The brief asks for nothing to be invented: details that aren't confirmed yet show as a dashed "To be confirmed" placeholder until they're filled in. That's the contact email and Instagram (`brand.contact` in `app/brand/brand.ts`), entry prices, the ticketing partner, birthday packages, booth options and the dress code (in `app/content/faq.ts` and on those pages).
 
 ## Brand kit
 
-Taken from the Alicyte Design asset set:
+From the official Club Casa Brand Guideline (Alicyte Design):
 
-- **Colours:** Orange `#E95E27`, Charcoal `#212121`, Stone `#CCC6BA`, Cream `#EDE1D3`. These are sampled from the palette swatches; two of the hex labels printed on that sheet don't match their swatches. The concept deck adds dark pink `#93304F` and red `#AA1F23` as supporting tones, and a subdued green `#4F5B3A` for plants.
-- **Type:** Felt Tip Senior for the logo and hand-drawn display (Kalam stands in where Felt Tip Senior isn't installed, since it has no web licence here); Helvetica Bold for line-ups and labels (Arimo off Apple devices); Roboto Mono in capitals for body copy.
-- **Colourways:** orange, cream and charcoal from the posters, plus red and pink from the concept deck. Each night has one; the page and the wall fade to it.
-- **Marks:** the logo, stacked logo, submark, circled lockup and marker strokes in `public/brand/` were traced from screenshots of the asset set. Swap in the designer's master SVGs at the same filenames when they arrive.
+- **Colours:** Orange `#E95E27`, Charcoal `#212121`, Stone `#CCC6BA`, Cream `#EDE1D3`, and nothing else. These are the swatch colours in the guideline (and in every post in the pack); two of the hex labels printed on the palette page (`#AA1F23`, `#EE2324`) don't match their swatches.
+- **Colourways:** charcoal leads, as on the posts; cream is the paper stock for content and forms; orange is for moments (the mailing list, accents).
+- **Type:** Felt Tip Senior for the hand-drawn display (Kalam stands in: the font files weren't in the pack, so add them to `public/fonts/` with an `@font-face` in `app/app.css` when they arrive); Helvetica Neue Bold for line-ups and labels (Arimo off Apple devices); Roboto Mono in capitals for body copy.
+- **Marks:** the official logos, emblem and mascot from the pack, in `public/brand/official/`, trimmed to their artwork. Each is drawn as a mask in the current colour, so one file serves every colourway.
+- **Mascot:** Casa (previously Otto).
 
 ## Environment
 
 | Variable | Purpose |
 | --- | --- |
 | `NEWSLETTER_WEBHOOK_URL` | Where mailing-list sign-ups are POSTed as JSON (Klaviyo, Mailchimp, Zapier, Make or your own endpoint). Without it the form says sign-up isn't connected yet. |
+| `ENQUIRY_WEBHOOK_URL` | Where birthday, booth, careers and contact enquiries are POSTed as JSON (`{ kind, form, fields, submittedAt }`), e.g. a Zapier or Make webhook that emails the team. Without it the forms say enquiries aren't connected yet. |
 
 ## Deploy
 

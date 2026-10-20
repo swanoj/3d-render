@@ -63,7 +63,7 @@ export function FilmStrip({ photos }: { photos: Photo[] }) {
             : 'Photos from each night land here once the film is back from the lab.'}
         </p>
         {night && (
-          <Link to={`/nights/${night}#photos`} className="text-link" viewTransition>
+          <Link to={`/events/${night}#photos`} className="text-link" viewTransition>
             See the night →
           </Link>
         )}

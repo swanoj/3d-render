@@ -2,9 +2,9 @@ import { Link } from 'react-router'
 import { brand } from '../brand/brand'
 import { Mark } from './Mark'
 import { NewsletterForm } from './NewsletterForm'
+import { VenueDetails } from './VenueDetails'
 
 export function SiteFooter() {
-  const { venue } = brand
   return (
     <footer className="site-footer">
       <section id="list" className="footer-list" aria-labelledby="list-title">
@@ -16,16 +16,11 @@ export function SiteFooter() {
       </section>
 
       <div className="footer-main">
-        <Mark name="logo-stacked" label={brand.name} className="footer-logo" />
-        <address className="mono">
-          {venue.name}
-          <br />
-          {venue.note}
-          <br />
-          {venue.street}
-          <br />
-          {venue.locality}
-        </address>
+        <div className="footer-brand">
+          <Mark name="logo-stacked" label={brand.name} className="footer-logo" />
+          <p className="hand footer-tagline">{brand.tagline}</p>
+        </div>
+        <VenueDetails className="footer-venue" />
         <nav aria-label="Footer" className="footer-nav">
           <ul>
             <li>
@@ -33,18 +28,13 @@ export function SiteFooter() {
                 Home
               </Link>
             </li>
-            {brand.nav.map((item) => (
+            {[...brand.nav, ...brand.moreNav].map((item) => (
               <li key={item.to}>
                 <Link to={item.to} viewTransition>
                   {item.label}
                 </Link>
               </li>
             ))}
-            <li>
-              <a href={venue.mapUrl} target="_blank" rel="noreferrer">
-                Map ↗
-              </a>
-            </li>
           </ul>
         </nav>
         <p className="footer-base mono">

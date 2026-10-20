@@ -1,22 +1,15 @@
 import { Link } from 'react-router'
 import type { Route } from './+types/home'
 import { brand } from '../brand/brand'
-import { CasaTV } from '../components/CasaTV'
-import { DjDesk } from '../components/DjDesk'
-import { Countdown } from '../components/Countdown'
+import { EventCard, EventFeature } from '../components/EventCard'
 import { FilmStrip } from '../components/FilmStrip'
-import { Lineup, NextDrop } from '../components/Lineup'
 import { Mark } from '../components/Mark'
-import { NightRow } from '../components/NightRow'
 import { OnNow } from '../components/NightOf'
-import { Note } from '../components/Scribble'
-import { TicketButton } from '../components/TicketButton'
+import { Note, Scribble } from '../components/Scribble'
 import { getHouse, getNights } from '../content/content.server'
-import { clockTime, posterDate } from '../lib/format'
 import { useNow } from '../lib/hooks'
 import { nightPhase, requestNow } from '../lib/nightOf'
 import { seo } from '../lib/seo'
-import type { TvData } from '../three/channels'
 
 export function meta() {
   return seo()
@@ -25,148 +18,170 @@ export function meta() {
 export async function loader({ request }: Route.LoaderArgs) {
   const now = requestNow(request)
   const [{ upcoming }, house] = await Promise.all([getNights(now), getHouse()])
-  const next = upcoming[0] ?? null
-  const vinylNext = upcoming.find((night) => night.format === 'vinyl') ?? null
-  const tv: TvData = {
-    next: next && {
-      title: next.title,
-      startsAt: next.startsAt,
-      closes: next.closes,
-      acts: next.acts.map((act) => (act.hidden ? null : act.name)),
-      sets: next.setTimes.map(({ start, name }) => ({ start, name })),
-    },
-    vinylNext: vinylNext && { startsAt: vinylNext.startsAt },
-    rules: house.houseRules,
-    venue: `${brand.venue.name} · St Kilda`,
-    now,
-    // A previewed "now" (?now=…) carries on into the clocks in the browser.
-    offset: now - Date.now(),
-  }
-  return { next, upcoming, now, tv, photos: house.photos, mood: next?.mood ?? brand.defaultMood }
+  // A previewed "now" (?now=…) carries on into the clocks in the browser.
+  return { upcoming, now, offset: now - Date.now(), photos: house.photos, mood: brand.defaultMood }
 }
 
+/** Ways to plan a night, each with its own page. */
+const PLANS = [
+  {
+    to: '/tickets',
+    title: 'Tickets',
+    text: 'Entry for every Saturday, online.',
+    action: 'Get tickets',
+  },
+  {
+    to: '/birthdays',
+    title: 'Birthdays',
+    text: 'Celebrating? Tell us about the night you have in mind.',
+    action: 'Plan a birthday',
+  },
+  {
+    to: '/booths',
+    title: 'Booths',
+    text: 'A booth for you and your friends, for the whole night.',
+    action: 'Book a booth',
+  },
+] as const
+
 export default function Home({ loaderData }: Route.ComponentProps) {
-  const { next, upcoming, tv, photos } = loaderData
-  const { venue } = brand
+  const { upcoming, offset, photos } = loaderData
+  const { venue, hours } = brand
   // Ticks, so the page turns to "on now" at doors, and follows the sets, without a reload.
-  const now = useNow(loaderData.now, { every: 15_000, offset: tv.offset })
+  const now = useNow(loaderData.now, { every: 15_000, offset })
+  const [next, ...later] = upcoming
   const live = next ? nightPhase(next.startsAt, now) === 'live' : false
 
   return (
     <>
       <section className="hero" aria-labelledby="hero-title">
         <h1 id="hero-title" className="hero-logo">
-          <Mark name="logo" label={brand.name} />
+          <Mark name="logo-tilted" label={brand.name} className="boil" />
         </h1>
-        {next ? (
-          <div className="hero-night">
-            <p className="label">{next.title}</p>
-            <p className="hand hero-date">
-              <time dateTime={next.startsAt}>{live ? 'Tonight' : posterDate(next.startsAt)}</time>
-              <Note className="hero-note" arrow="arrow" flip delay={900}>
-                {live ? 'come on down' : 'save the date'}
-              </Note>
-            </p>
-            <p className="label hero-time">
-              {clockTime(next.startsAt)}–{next.closes} · {venue.name}, St Kilda
-            </p>
-            <Mark name="submark" className="hero-submark" />
-            <div className="button-row">
-              <TicketButton night={next} />
-              <Link to={`/nights/${next.slug}`} className="button" viewTransition>
-                Line-up
-              </Link>
-            </div>
-            {live ? (
-              <OnNow sets={next.setTimes} now={now} />
-            ) : (
-              <p className="mono hero-countdown">
-                Doors in <Countdown to={Date.parse(next.startsAt)} now={now} offset={tv.offset} />
-              </p>
-            )}
-          </div>
-        ) : (
-          <p className="hand hero-date">New nights soon</p>
-        )}
+        <p className="hand hero-tagline">{brand.tagline}</p>
+        <p className="label hero-hours">
+          {hours.days} · {hours.time} · {venue.host}, {venue.suburb}
+        </p>
+        {live && next && <OnNow sets={next.setTimes} now={now} />}
+        <div className="button-row hero-actions">
+          <Link to="/tickets" className="button button--solid" viewTransition>
+            Get tickets
+          </Link>
+          <a href="#events" className="button">
+            Upcoming events
+          </a>
+        </div>
+        <Mark name="emblem" className="hero-emblem spin-steps" />
       </section>
 
-      <CasaTV data={tv} />
-
-      <section className="surface surface--cream intro" aria-labelledby="intro-title">
-        <div className="intro-poster">
-          <h2 id="intro-title" className="visually-hidden">
-            {next ? `${next.title} line-up` : 'About Club Casa'}
-          </h2>
-          <Mark name="logo-stacked" className="intro-logo" />
-          <Mark name="squiggle" className="intro-squiggle" />
-          {next?.acts.length ? (
-            <div className="intro-lineup">
-              <Lineup acts={next.acts} />
-              {next.nextDrop ? (
-                <NextDrop drop={next.nextDrop} now={now} offset={tv.offset} />
-              ) : (
-                !next.lineupConfirmed && (
-                  <Note className="lineup-note" arrow="arrow" flip delay={400}>
-                    more names soon
-                  </Note>
-                )
-              )}
-            </div>
-          ) : (
-            <p className="label">Line-up soon</p>
-          )}
-        </div>
-        <div className="intro-copy">
-          <p className="mono">{brand.intro}</p>
-          <Mark name="underline" className="intro-underline" />
-        </div>
-      </section>
-
-      <section className="surface surface--charcoal block" aria-labelledby="nights-title">
+      <section id="events" className="surface surface--charcoal block events-block" aria-labelledby="events-title">
         <div className="block-heading">
-          <h2 id="nights-title" className="hand block-title">
-            Nights
+          <h2 id="events-title" className="hand block-title">
+            Upcoming events
+            <Scribble kind="underline" className="block-title-underline" />
           </h2>
-          <Link to="/nights" className="text-link" viewTransition>
-            All nights →
+          <Link to="/events" className="text-link" viewTransition>
+            All events →
           </Link>
         </div>
-        {upcoming.length ? (
-          <ul className="night-list">
-            {upcoming.map((night) => (
-              <NightRow key={night.slug} night={night} />
-            ))}
-          </ul>
+        {next ? (
+          <>
+            <EventFeature night={next} now={now} offset={offset} />
+            {later.length > 0 && (
+              <div className="event-grid">
+                {later.slice(0, 3).map((night) => (
+                  <EventCard key={night.slug} night={night} />
+                ))}
+              </div>
+            )}
+          </>
         ) : (
-          <p className="mono">New nights soon. Get on the list to hear first.</p>
+          <p className="mono">New events soon. Get on the list to hear first.</p>
         )}
       </section>
 
-      <FilmStrip photos={photos} />
+      <section className="surface surface--cream about" aria-labelledby="about-title">
+        <div className="about-art">
+          <Mark name="logo-stacked" className="about-logo" />
+          <Mark name="squiggle" className="about-squiggle" />
+        </div>
+        <div className="about-copy">
+          <h2 id="about-title" className="label">
+            About {brand.name}
+          </h2>
+          <p className="hand about-lede">{brand.tagline}</p>
+          <p className="mono">{brand.intro}</p>
+          <p className="hand about-hours">
+            <span className="circled">
+              {hours.days}
+              <Scribble kind="circle" className="circled-ring" stretch delay={300} />
+            </span>{' '}
+            {hours.time}
+          </p>
+        </div>
+      </section>
+
+      <section className="surface surface--charcoal block plans" aria-labelledby="plans-title">
+        <div className="block-heading">
+          <h2 id="plans-title" className="hand block-title">
+            Plan your night
+          </h2>
+        </div>
+        <ul className="plan-grid">
+          {PLANS.map((plan) => (
+            <li key={plan.to}>
+              <Link to={plan.to} className="plan-card" viewTransition>
+                <span className="hand plan-title">{plan.title}</span>
+                <span className="mono plan-text">{plan.text}</span>
+                <span className="plan-action">{plan.action} →</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+        <p className="plans-more mono">
+          <span>Questions?</span>
+          <Link to="/faqs" className="text-link" viewTransition>
+            FAQs
+          </Link>
+          <span>· Want to work with us?</span>
+          <Link to="/careers" className="text-link" viewTransition>
+            Join the team
+          </Link>
+          <Note className="plans-note" arrow="arrow" flip delay={500}>
+            promoters & hosts
+          </Note>
+        </p>
+      </section>
+
+      {photos.length > 0 && <FilmStrip photos={photos} />}
 
       <section className="surface surface--cream venue" aria-labelledby="venue-title">
-        <Mark name="logo-circled" className="venue-lockup" />
+        <Mark name="logo-mascot" className="venue-lockup" />
         <div className="venue-text">
           <p className="label">Find us</p>
           <h2 id="venue-title" className="hand venue-name">
-            {venue.name}
+            {venue.host}
           </h2>
           <address className="mono">
-            {venue.note}
+            {venue.name}
             <br />
             {venue.street}
             <br />
             {venue.locality}
           </address>
-          <p className="mono">{brand.entry}</p>
-          <a className="button button--solid" href={venue.mapUrl} target="_blank" rel="noreferrer">
-            Open in Maps
-          </a>
+          <p className="mono">
+            {hours.long}. {brand.entry}
+          </p>
+          <div className="button-row button-row--start">
+            <a className="button button--solid" href={venue.mapUrl} target="_blank" rel="noreferrer">
+              Open in Google Maps ↗
+            </a>
+            <Link to="/contact" className="button" viewTransition>
+              Contact
+            </Link>
+          </div>
         </div>
       </section>
-
-      {/* Last on the page and sticky, so it rides along the bottom of the screen and ends above the footer. */}
-      <DjDesk />
     </>
   )
 }

@@ -28,7 +28,7 @@ export const mixes: Mix[] = [
     artist: 'Casa residents',
     artistSlug: 'casa-residents',
     groove: 'disco',
-    sleeve: 'pink',
+    sleeve: 'charcoal',
   },
   {
     id: 'sunday-vinyl',

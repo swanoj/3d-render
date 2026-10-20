@@ -1,25 +1,7 @@
 import type { CSSProperties } from 'react'
+import { markUrl, marks, type MarkName } from '../lib/marks'
 
-/*
- * Brand marks traced from the Alicyte Design asset set (public/brand/*.svg). Each renders as a CSS mask filled
- * with currentColor, so one file serves every colourway. Replace the SVGs with the designer's master files and
- * nothing else has to change.
- */
-const marks = {
-  logo: [1600, 240],
-  'logo-stacked': [860, 510],
-  'logo-circled': [1660, 545],
-  submark: [676, 572],
-  circle: [624, 660],
-  oval: [660, 222],
-  underline: [678, 216],
-  'double-line': [672, 210],
-  check: [560, 440],
-  cross: [623, 707],
-  squiggle: [840, 116],
-} as const
-
-export type MarkName = keyof typeof marks
+export type { MarkName }
 
 interface MarkProps {
   name: MarkName
@@ -30,8 +12,8 @@ interface MarkProps {
 }
 
 export function Mark({ name, label, className, style }: MarkProps) {
-  const [width, height] = marks[name]
-  const url = `url(/brand/${name}.svg)`
+  const [, width, height] = marks[name]
+  const url = `url(${markUrl(name)})`
   return (
     <span
       className={['mark', className].filter(Boolean).join(' ')}

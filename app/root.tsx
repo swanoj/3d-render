@@ -4,6 +4,8 @@ import { isRouteErrorResponse, Links, Meta, Outlet, Scripts, ScrollRestoration }
 import type { Route } from './+types/root'
 import './app.css'
 import { brand, moods, pageTitle } from './brand/brand'
+import { Casa } from './components/Casa'
+import { markUrl } from './lib/marks'
 import { RadioDock } from './components/RadioDock'
 import { SiteFooter } from './components/SiteFooter'
 import { SiteHeader } from './components/SiteHeader'
@@ -15,6 +17,7 @@ export const links: Route.LinksFunction = () => [
   // The logo and the hand-drawn face set the first screen, so fetch them alongside the HTML.
   // CSS masks and the WebGL tile both fetch the logo in CORS mode, so the preload must match or it goes unused.
   { rel: 'preload', href: '/brand/logo.svg', as: 'image', type: 'image/svg+xml', crossOrigin: 'anonymous' },
+  { rel: 'preload', href: markUrl('logo'), as: 'image', type: 'image/png', crossOrigin: 'anonymous' },
   { rel: 'preload', href: kalamBold, as: 'font', type: 'font/woff2', crossOrigin: 'anonymous' },
   { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
 ]
@@ -56,6 +59,8 @@ export default function App() {
       <SiteFooter />
       {/* Outside the pages, so the turntable keeps turning from one to the next. */}
       <RadioDock />
+      {/* The mascot, walking the bottom edge of every page. */}
+      <Casa />
     </MoodProvider>
   )
 }

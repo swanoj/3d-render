@@ -33,15 +33,15 @@ export default function ArtistPage({ loaderData }: Route.ComponentProps) {
   return (
     <>
       <section className="artist-hero" aria-labelledby="artist-name">
-        <Link to="/nights" className="text-link back-link" viewTransition>
-          ← All nights
+        <Link to="/events" className="text-link back-link" viewTransition>
+          ← All events
         </Link>
         <div className="artist-portrait">
           {artist.photo ? (
             <img src={artist.photo} alt={artist.name} />
           ) : (
             <span className="record-art" aria-hidden>
-              <Mark name="submark" className="record-art-label" />
+              <Mark name="emblem" className="record-art-label" />
             </span>
           )}
         </div>
@@ -73,7 +73,7 @@ export default function ArtistPage({ loaderData }: Route.ComponentProps) {
             ))}
           </ul>
         ) : (
-          <p className="mono">No nights announced yet. Get on the list to hear first.</p>
+          <p className="mono">No events announced yet. Get on the list to hear first.</p>
         )}
       </section>
     </>

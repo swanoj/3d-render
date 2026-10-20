@@ -1,6 +1,7 @@
 import { mixes } from '../content/radio'
 import type { GrooveId, Mix } from '../content/types'
-import type { ChannelId } from '../three/channels'
+/** The Casa TV channels the sound engine still knows about (the TV itself is gone in v2). */
+type ChannelId = 'next' | 'lineup' | 'rules' | 'vinyl' | 'test' | 'cam'
 
 /** Casa Radio: the record on air, whether anything's playing, and when deck 1 last changed (`performance.now()`). */
 export interface RadioState {

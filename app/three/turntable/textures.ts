@@ -1,8 +1,8 @@
 import type { CanvasTexture } from 'three'
 import { palette } from '../../brand/brand'
 import type { Mix } from '../../content/types'
-import { tinted, type TvAssets } from '../channels'
-import { canvasTexture } from '../room/textures'
+import { tinted, type MarkAssets } from '../assets'
+import { canvasTexture } from '../textures'
 
 /*
  * The turntable's surfaces, painted into canvases at load like the room's, so there are no image files. Radii are
@@ -94,7 +94,7 @@ export function vinylMaps() {
 }
 
 /** A label in Casa orange: the submark, the station and what's playing. */
-export function recordLabelTexture(mix: Mix, assets: TvAssets | null) {
+export function recordLabelTexture(mix: Mix, assets: MarkAssets | null) {
   return canvasTexture(512, 512, (ctx) => {
     ctx.fillStyle = palette.orange
     ctx.beginPath()
