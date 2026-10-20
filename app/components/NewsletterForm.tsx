@@ -1,4 +1,6 @@
+import { useEffect } from 'react'
 import { useFetcher } from 'react-router'
+import { track } from '../lib/analytics'
 import type { action } from '../routes/api.newsletter'
 
 /** Email sign-up. Posts to /api/newsletter without leaving the page. */
@@ -6,6 +8,10 @@ export function NewsletterForm({ id }: { id: string }) {
   const fetcher = useFetcher<typeof action>()
   const busy = fetcher.state !== 'idle'
   const result = fetcher.data
+
+  useEffect(() => {
+    if (result?.ok) track('sign_up', { method: 'newsletter' })
+  }, [result])
 
   return (
     <fetcher.Form method="post" action="/api/newsletter" className="newsletter-form">

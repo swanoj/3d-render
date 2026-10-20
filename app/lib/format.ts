@@ -38,6 +38,27 @@ export function clockTime(iso: string) {
   return `${twelve}${minute ? `:${String(minute).padStart(2, '0')}` : ''}${hour < 12 ? 'AM' : 'PM'}`
 }
 
+/** An instant in Melbourne time with its offset, as schema.org dates read: "2026-10-25T05:00:00+11:00". */
+export function localIso(ms: number) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat(brand.locale, {
+      timeZone: brand.timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23',
+      timeZoneName: 'longOffset',
+    })
+      .formatToParts(new Date(ms))
+      .map((part) => [part.type, part.value]),
+  )
+  const offset = parts.timeZoneName === 'GMT' ? '+00:00' : parts.timeZoneName.replace('GMT', '')
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}${offset}`
+}
+
 export function pad2(value: number) {
   return String(value).padStart(2, '0')
 }

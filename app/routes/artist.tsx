@@ -8,19 +8,27 @@ import { getArtist } from '../content/content.server'
 import type { RouteHandle } from '../lib/mood'
 import { requestNow } from '../lib/nightOf'
 import { seo } from '../lib/seo'
+import { siteOrigin } from '../lib/site.server'
+import { artistJsonLd, breadcrumbJsonLd } from '../lib/structuredData'
 
 export const handle: RouteHandle = { mood: 'charcoal' }
 
 export async function loader({ params, request }: Route.LoaderArgs) {
   const found = await getArtist(params.slug, requestNow(request))
   if (!found) throw data('Artist not found', { status: 404 })
-  return found
+  const { artist } = found
+  const shareImage = artist.photo ? { src: artist.photo, alt: artist.name } : undefined
+  return { ...found, origin: siteOrigin(request), shareImage }
 }
 
 export function meta({ loaderData }: Route.MetaArgs) {
   if (!loaderData) return seo({ title: 'Not found' })
-  const { artist } = loaderData
-  return seo({ title: artist.name, description: `${artist.name} at Club Casa. ${artist.bio}` })
+  const { artist, origin } = loaderData
+  return [
+    ...seo({ title: artist.name, description: `${artist.name} at Club Casa. ${artist.bio}` }),
+    { 'script:ld+json': artistJsonLd(artist, origin) },
+    { 'script:ld+json': breadcrumbJsonLd(origin, [{ name: artist.name, path: `/artists/${artist.slug}` }]) },
+  ]
 }
 
 export function ErrorBoundary() {

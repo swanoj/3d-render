@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { track } from '../lib/analytics'
 
 /**
  * Shares the current page with the system share sheet, or copies the link where there isn't one. Only the origin
@@ -16,10 +17,13 @@ export function ShareButton({ title, text }: { title: string; text: string }) {
 
   const share = async () => {
     const url = `${window.location.origin}${window.location.pathname}`
+    const shared = (method: string) =>
+      track('share', { method, content_type: 'page', item_id: window.location.pathname })
     // Desktop Firefox and older browsers have no share sheet.
     if (typeof navigator.share === 'function') {
       try {
         await navigator.share({ title, text, url })
+        shared('share_sheet')
       } catch {
         // Closing the share sheet rejects; nothing to report.
       }
@@ -27,6 +31,7 @@ export function ShareButton({ title, text }: { title: string; text: string }) {
     }
     try {
       await navigator.clipboard.writeText(url)
+      shared('copy_link')
       flash('Link copied')
     } catch {
       flash(`Copy this link: ${url}`)

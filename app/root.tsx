@@ -1,6 +1,14 @@
 import kalamBold from '@fontsource/kalam/files/kalam-latin-700-normal.woff2?url'
 import type { ReactNode } from 'react'
-import { isRouteErrorResponse, Links, Meta, Outlet, Scripts, ScrollRestoration } from 'react-router'
+import {
+  isRouteErrorResponse,
+  Links,
+  Meta,
+  Outlet,
+  Scripts,
+  ScrollRestoration,
+  useRouteLoaderData,
+} from 'react-router'
 import type { Route } from './+types/root'
 import './app.css'
 import { brand, moods, pageTitle } from './brand/brand'
@@ -9,9 +17,21 @@ import { markUrl } from './lib/marks'
 import { RadioDock } from './components/RadioDock'
 import { SiteFooter } from './components/SiteFooter'
 import { SiteHeader } from './components/SiteHeader'
+import { SiteAnalytics, SiteHead } from './components/SiteMeta'
 import { Backdrop } from './components/Stages'
 import { moodCss, useRouteMood } from './lib/mood'
 import { MoodProvider } from './lib/MoodProvider'
+import { siteConfig } from './lib/site.server'
+
+/** The site's address and analytics settings (see lib/site.server.ts). */
+export function loader({ request }: Route.LoaderArgs) {
+  return siteConfig(request)
+}
+
+// The settings don't change from page to page, so they're fetched once.
+export function shouldRevalidate() {
+  return false
+}
 
 export const links: Route.LinksFunction = () => [
   // The logo and the hand-drawn face set the first screen, so fetch them alongside the HTML.
@@ -24,6 +44,7 @@ export const links: Route.LinksFunction = () => [
 
 export function Layout({ children }: { children: ReactNode }) {
   const mood = useRouteMood()
+  const site = useRouteLoaderData<typeof loader>('root')
   return (
     <html lang="en-AU">
       <head>
@@ -34,6 +55,7 @@ export function Layout({ children }: { children: ReactNode }) {
         <style>{moodCss(mood)}</style>
         <Meta />
         <Links />
+        <SiteHead site={site} />
       </head>
       <body>
         {children}
@@ -61,6 +83,7 @@ export default function App() {
       <RadioDock />
       {/* The mascot, walking the bottom edge of every page. */}
       <Casa />
+      <SiteAnalytics />
     </MoodProvider>
   )
 }

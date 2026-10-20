@@ -1,7 +1,8 @@
 import type { Night } from '../content/types'
+import { track } from '../lib/analytics'
 
 interface TicketButtonProps {
-  night: Pick<Night, 'status' | 'ticketUrl'>
+  night: Pick<Night, 'status' | 'ticketUrl'> & { slug?: string }
   className?: string
 }
 
@@ -12,8 +13,16 @@ export function TicketButton({ night, className }: TicketButtonProps) {
     return <span className={classes('button', 'button--static')}>Sold out</span>
   }
   if (night.status === 'on-sale' && night.ticketUrl) {
+    // The sale happens on the ticketing site, so the click is the moment to count.
+    const onClick = () => track('ticket_click', { event: night.slug ?? null })
     return (
-      <a className={classes('button', 'button--solid')} href={night.ticketUrl} target="_blank" rel="noreferrer">
+      <a
+        className={classes('button', 'button--solid')}
+        href={night.ticketUrl}
+        target="_blank"
+        rel="noreferrer"
+        onClick={onClick}
+      >
         Get tickets ↗
       </a>
     )

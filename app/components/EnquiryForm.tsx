@@ -1,5 +1,7 @@
+import { useEffect } from 'react'
 import { useFetcher } from 'react-router'
 import { ANOTHER_DATE, enquiries, type EnquiryField, type EnquiryKind } from '../content/enquiries'
+import { track } from '../lib/analytics'
 import type { EnquiryResult } from '../routes/api.enquiry'
 import { Mark } from './Mark'
 
@@ -79,6 +81,10 @@ export function EnquiryForm({ kind, saturdays = [] }: EnquiryFormProps) {
   const busy = fetcher.state !== 'idle'
   const result = fetcher.data
   const sent = result?.ok
+
+  useEffect(() => {
+    if (result?.ok) track('generate_lead', { form: kind })
+  }, [result, kind])
 
   if (sent) {
     return (

@@ -13,73 +13,41 @@ import { Note } from '../components/Scribble'
 import { ShareButton } from '../components/ShareButton'
 import { TicketButton } from '../components/TicketButton'
 import { getNight, getPhotos } from '../content/content.server'
-import type { NightView } from '../content/types'
+import { track } from '../lib/analytics'
 import { clockTime, posterDate } from '../lib/format'
 import { useNow } from '../lib/hooks'
 import { nightPhase, requestNow } from '../lib/nightOf'
 import { eventPath } from '../lib/paths'
 import { seo } from '../lib/seo'
+import { siteOrigin } from '../lib/site.server'
+import { breadcrumbJsonLd, eventJsonLd } from '../lib/structuredData'
 
 export async function loader({ params, request }: Route.LoaderArgs) {
   const now = requestNow(request)
   const night = await getNight(params.slug, now)
   if (!night) throw data('Event not found', { status: 404 })
-  const url = new URL(eventPath(night), request.url).href
   const photos = await getPhotos(night.slug)
+  // The poster is the picture when the event is shared.
+  const shareImage = night.artwork ? { src: night.artwork.src, alt: night.artwork.alt } : undefined
   // A previewed "now" (?now=…) carries on into the clocks in the browser.
-  return { night, url, now, offset: now - Date.now(), photos, mood: night.mood }
-}
-
-/** schema.org event data, so search engines can show the event with its date and venue. */
-function eventJsonLd(night: NightView, url: string) {
-  const { venue } = brand
-  const confirmed = night.lineupConfirmed && night.lineup.length > 0
-  return {
-    '@context': 'https://schema.org',
-    '@type': 'MusicEvent',
-    name: `${brand.name}: ${posterDate(night.startsAt)}`,
-    url,
-    startDate: night.startsAt,
-    eventStatus: 'https://schema.org/EventScheduled',
-    eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
-    typicalAgeRange: '18-',
-    ...(night.artwork ? { image: new URL(night.artwork.src, url).href } : {}),
-    location: {
-      '@type': 'MusicVenue',
-      name: `${venue.name} at the ${venue.host}`,
-      address: {
-        '@type': 'PostalAddress',
-        streetAddress: venue.street,
-        addressLocality: venue.suburb,
-        addressRegion: venue.state,
-        postalCode: venue.postcode,
-        addressCountry: venue.country,
-      },
-    },
-    organizer: { '@type': 'Organization', name: brand.name },
-    ...(confirmed ? { performer: night.lineup.map((name) => ({ '@type': 'Person', name })) } : {}),
-    ...(night.ticketUrl
-      ? {
-          offers: {
-            '@type': 'Offer',
-            url: night.ticketUrl,
-            availability: `https://schema.org/${night.status === 'sold-out' ? 'SoldOut' : 'InStock'}`,
-          },
-        }
-      : {}),
-  }
+  return { night, origin: siteOrigin(request), now, offset: now - Date.now(), photos, shareImage, mood: night.mood }
 }
 
 export function meta({ loaderData }: Route.MetaArgs) {
   if (!loaderData) return seo({ title: 'Not found' })
-  const { night, url } = loaderData
+  const { night, origin } = loaderData
+  const date = posterDate(night.startsAt)
   const lineup = night.lineupConfirmed && night.lineup.length ? ` With ${night.lineup.join(', ')}.` : ''
+  const description = `${night.title} at the ${brand.venue.host}, ${brand.venue.suburb}. ${clockTime(night.startsAt)} until ${night.closes}.${lineup}`
   return [
-    ...seo({
-      title: posterDate(night.startsAt),
-      description: `${night.title} at the ${brand.venue.host}, ${brand.venue.suburb}. ${clockTime(night.startsAt)} until ${night.closes}.${lineup}`,
-    }),
-    { 'script:ld+json': eventJsonLd(night, url) },
+    ...seo({ title: `${date} at the ${brand.venue.host}`, description }),
+    { 'script:ld+json': eventJsonLd(night, origin, description) },
+    {
+      'script:ld+json': breadcrumbJsonLd(origin, [
+        { name: 'Events', path: '/events' },
+        { name: date, path: eventPath(night) },
+      ]),
+    },
   ]
 }
 
@@ -136,7 +104,12 @@ export default function EventPage({ loaderData }: Route.ComponentProps) {
           )}
           <div className="button-row button-row--start event-actions">
             <TicketButton night={night} />
-            <a className="button" href={`${eventPath(night)}/calendar.ics`} download>
+            <a
+              className="button"
+              href={`${eventPath(night)}/calendar.ics`}
+              download
+              onClick={() => track('add_to_calendar', { event: night.slug })}
+            >
               Add to calendar
             </a>
             <ShareButton

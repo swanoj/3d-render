@@ -53,6 +53,8 @@ npm start        # serve the build on http://localhost:3000
 | Marker strokes | `public/brand/*.svg` |
 | Casa's shows (tickets, birthdays, booths) and the scroll effects | `app/components/PlanArt.tsx`, `NavPeek.tsx`, `ScrollFx.tsx`, `app/lib/scrollFx.ts` |
 | Styles | `app/app.css` |
+| Structured data, sitemap, robots.txt, llms.txt | `app/lib/structuredData.ts`, `app/routes/sitemap.ts`, `robots.ts`, `llms.ts` |
+| The share card and analytics tags | `public/share/`, `app/components/SiteMeta.tsx`, `app/lib/analytics.ts` |
 
 **The calendar fills itself in.** Club Casa runs every Saturday, so the site lists the next eight Saturdays as placeholders ("Club Casa", line-up to be announced, tickets soon), each with one of the brand's posts as its artwork. To announce a night, add it to `app/content/nights.ts` under its date slug: whatever you give it (title, artwork, line-up, set times, `ticketUrl`) replaces the placeholder for that Saturday. Set `status: 'on-sale'` with a `ticketUrl` to turn its button into **Get tickets**, and `lineupConfirmed: true` once the line-up is real bookings. One-off nights on other days work the same way.
 
@@ -76,6 +78,16 @@ From the official Club Casa Brand Guideline (Alicyte Design):
 | --- | --- |
 | `NEWSLETTER_WEBHOOK_URL` | Where mailing-list sign-ups are POSTed as JSON (Klaviyo, Mailchimp, Zapier, Make or your own endpoint). Without it the form says sign-up isn't connected yet. |
 | `ENQUIRY_WEBHOOK_URL` | Where birthday, booth, careers and contact enquiries are POSTed as JSON (`{ kind, form, fields, submittedAt }`), e.g. a Zapier or Make webhook that emails the team. Without it the forms say enquiries aren't connected yet. |
+| `SITE_URL` | The real public address, e.g. `https://clubcasa.com.au`. Canonical links, the sitemap and structured data use it, and every other host (previews, share copies) tells search engines not to index it. Without it, pages use the address they were requested on. |
+| `GA_MEASUREMENT_ID` | Google Analytics 4 measurement ID (`G-…`). Without it Google Analytics stays off. |
+| `GOOGLE_SITE_VERIFICATION` | The `content` of Search Console's HTML-tag verification. |
+| `BING_SITE_VERIFICATION` | The `content` of Bing Webmaster Tools' `msvalidate.01` tag. |
+
+## Search, AI assistants and analytics
+
+- **For search engines:** a canonical link, share card (`public/share/club-casa.png`, or the event's poster) and Open Graph tags on every page; `/sitemap.xml` and `/robots.txt`, generated from the content; and schema.org data: the club, the site and the weekly series on the home page, the series with every coming night on `/events`, each night (venue, times, line-up, tickets) with breadcrumbs on its page, the FAQs, and each act.
+- **For AI assistants:** `/llms.txt` sums up the club in plain Markdown (the facts, the coming nights, the answered FAQs and what isn't announced yet), and `robots.txt` names the AI search and training crawlers so they're explicitly welcome. Pages are server-rendered, so crawlers that don't run JavaScript read everything.
+- **Analytics:** Vercel Web Analytics and Speed Insights (switch both on in the Vercel project's Analytics and Speed Insights tabs), and Google Analytics 4 with `GA_MEASUREMENT_ID`. GA counts page views itself as the address changes: leave Enhanced measurement on, as it is by default. Key moments go to both: `ticket_click`, `sign_up` (the mailing list), `generate_lead` (birthday, booth, careers and contact enquiries, with the form), `share` and `add_to_calendar`. Mark `ticket_click`, `sign_up` and `generate_lead` as key events in GA. Consent defaults allow measurement only, with no advertising cookies.
 
 ## Deploy
 

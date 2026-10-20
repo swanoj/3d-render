@@ -6,16 +6,21 @@ import { PageHero } from '../components/PageHero'
 import { getNights } from '../content/content.server'
 import { requestNow } from '../lib/nightOf'
 import { seo } from '../lib/seo'
+import { siteOrigin } from '../lib/site.server'
+import { eventsJsonLd } from '../lib/structuredData'
 
-export function meta() {
-  return seo({
-    title: 'Events',
-    description: `Upcoming events at ${brand.name}: ${brand.hours.long}, at the ${brand.venue.host}, ${brand.venue.suburb}.`,
-  })
+export function meta({ loaderData }: Route.MetaArgs) {
+  return [
+    ...seo({
+      title: 'Events',
+      description: `Upcoming events at ${brand.name}: ${brand.hours.long}, at the ${brand.venue.host}, ${brand.venue.suburb}.`,
+    }),
+    ...(loaderData ? [{ 'script:ld+json': eventsJsonLd(loaderData.origin, loaderData.upcoming) }] : []),
+  ]
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
-  return getNights(requestNow(request))
+  return { ...(await getNights(requestNow(request))), origin: siteOrigin(request) }
 }
 
 export default function Events({ loaderData }: Route.ComponentProps) {
