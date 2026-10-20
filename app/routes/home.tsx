@@ -2,6 +2,8 @@ import { useRef, useState } from 'react'
 import { Link } from 'react-router'
 import type { Route } from './+types/home'
 import { brand } from '../brand/brand'
+import { ClubDoor } from '../club/ClubDoor'
+import { ClubLayer } from '../club/ClubLayer'
 import { EventCard, EventFeature } from '../components/EventCard'
 import { FilmStrip } from '../components/FilmStrip'
 import { Mark } from '../components/Mark'
@@ -104,6 +106,8 @@ export default function Home({ loaderData }: Route.ComponentProps) {
           </a>
         </div>
         <Mark name="emblem" className="hero-emblem spin-steps" />
+        {/* Hover down here. */}
+        <ClubDoor hero={hero} />
       </section>
 
       <section id="events" className="surface surface--charcoal block events-block" aria-labelledby="events-title">
@@ -213,6 +217,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
           </div>
         </div>
       </section>
+      <ClubLayer />
     </div>
   )
 }
