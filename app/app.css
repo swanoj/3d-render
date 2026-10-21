@@ -1888,6 +1888,29 @@ html:has(.sheet[open]) {
   font: 700 24px / 1 var(--font-hand);
 }
 
+/* Birthday packages and booth options from the back office, beside the enquiry form. */
+.offer-list {
+  width: 100%;
+  max-width: 44ch;
+  border-top: 1px solid color-mix(in srgb, var(--fg) 24%, transparent);
+}
+
+.offer {
+  display: grid;
+  gap: 4px;
+  padding: 16px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--fg) 24%, transparent);
+}
+
+.offer-name {
+  font: 700 15px / 1.4 var(--font-bold);
+  text-transform: uppercase;
+}
+
+.enquiry-aside .offer-includes {
+  opacity: 0.8;
+}
+
 .enquiry-card {
   display: grid;
   gap: 22px;

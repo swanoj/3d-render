@@ -23,3 +23,19 @@ export function imageField(name: string, title: string, description: string, gro
 
 /** The same, as an item in a list of images. */
 export const imageMember = defineArrayMember({ type: 'image', options: { hotspot: true }, fields: [altField] })
+
+/** A birthday package or a booth option: what it's called, who it's for, the price and what's included. */
+export const offerMember = defineArrayMember({
+  name: 'offer',
+  type: 'object',
+  fields: [
+    defineField({ name: 'name', title: 'Name', type: 'string', validation: (rule) => rule.required() }),
+    defineField({ name: 'guests', title: 'Group size', type: 'string', description: 'Optional, as it should read, e.g. "Up to 10 guests".' }),
+    defineField({ name: 'price', title: 'Price', type: 'string', description: 'Optional, as it should read, e.g. "Minimum spend $…".' }),
+    defineField({ name: 'includes', title: 'What’s included', type: 'text', rows: 3 }),
+  ],
+  preview: {
+    select: { title: 'name', guests: 'guests', price: 'price' },
+    prepare: ({ title, guests, price }) => ({ title, subtitle: [guests, price].filter(Boolean).join(' · ') }),
+  },
+})

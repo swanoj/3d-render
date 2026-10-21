@@ -14,6 +14,17 @@ export interface Artwork {
   alt: string
 }
 
+/** A birthday package or a booth option, as the back office sets it out. */
+export interface Offer {
+  name: string
+  /** Who it's for, as it should read: "Up to 10 guests". */
+  guests?: string
+  /** As it should read: "Minimum spend $…". */
+  price?: string
+  /** What's included. */
+  includes?: string
+}
+
 export interface Night {
   /** URL slug; the date keeps it unique, e.g. "2026-10-16". */
   slug: string

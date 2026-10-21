@@ -42,20 +42,22 @@ npm start        # serve the build on http://localhost:3000
 
 The team edits the site in **Sanity Studio**, a web app in `studio/` that Sanity hosts (at `<name>.sanity.studio` once it's deployed). It's laid out around the week:
 
-- **Coming up** and **Past nights:** each night's date and doors, name, colourway and vinyl badge; the line-up in poster order (linked to acts' pages), its reveal phases and set times; tickets (not on sale, on sale with the link, sold out) and the price from; the poster, with a focal point for cropping, and photos from the night. A new night starts on the coming Saturday at 10PM. Plain-English checks catch mistakes, like putting a night on sale without its ticket link.
+- **Coming up** and **Past nights:** each night's date and doors, name, colourway and vinyl badge; the line-up in poster order (linked to acts' pages), its reveal phases and set times; tickets (not on sale, on sale with the link, sold out) and the price from; the poster, with a focal point for cropping, and photos from the night. The coming eight Saturdays are always there, just as the site shows them (doors at 10PM, wearing the weekly poster), ready to open and fill in: the seed script adds them, and so does opening the Studio (`studio/lib/weekly.ts`). **Cancelled** takes a night off the site. A new night is for a one-off on another date. Plain-English checks catch mistakes, like putting a night on sale without its ticket link.
+- **Every Saturday:** the weekly posters a Saturday takes in turn until it has its own.
 - **Acts:** name, the line under it, bio, portrait, links and their Casa Radio mix.
+- **Tickets, Birthdays and Booths:** each page's intro; the ticketing partner and entry prices; the birthday packages; the booths and VIP options. Anything left empty shows as "to be confirmed".
 - **FAQs:** the questions in order. Leave an answer empty and the page shows its "to be confirmed" placeholder, and the question stays out of search results until it's answered.
 - **Venue & contact:** the contact email, the Instagram handle and getting there.
 
-The site reads what's published from Sanity's CDN (`app/lib/sanity.server.ts`, `app/content/cms.server.ts`), and it's on the site within a minute. Anything published replaces the content files' version (a night or act with the same slug, or the FAQs and venue details once they're saved), so the site works the same with Sanity connected or not. If Sanity can't be reached, pages carry on with the last content it sent, or the files.
+The site reads what's published from Sanity's CDN (`app/lib/sanity.server.ts`, `app/content/cms.server.ts`), and it's on the site within a minute. Anything published replaces the content files' version (a night or act with the same slug, or the weekly posters, booking pages, FAQs and venue details once they're saved), so the site works the same with Sanity connected or not. If Sanity can't be reached, pages carry on with the last content it sent, or the files.
 
 ```sh
 cd studio
 npm install
 npx sanity login                  # once, in the browser
 npm run dev                       # http://localhost:3333
-npm run seed                      # once: copies the FAQs, venue details and acts from app/content
-npm run deploy -- --url clubcasa  # publish the back office to clubcasa.sanity.studio
+npm run seed                      # copies what the site shows into the back office; never overwrites the team's edits
+npm run deploy                    # publish the back office to clubcasa.sanity.studio
 ```
 
 The Studio keeps itself on the latest Sanity release. Changing the content model (`studio/schemaTypes/`) needs a `npm run deploy`.
@@ -64,9 +66,10 @@ The Studio keeps itself on the latest Sanity release. Changing the content model
 
 | What | Where |
 | --- | --- |
-| Nights, acts, FAQs, the contact email and Instagram, getting there | The back office (see above) |
+| Nights, the weekly posters, acts, the Tickets, Birthdays and Booths pages, FAQs, the contact email and Instagram, getting there | The back office (see above) |
 | Events in code: announced nights, line-ups, reveal phases, set times, artwork, ticket links | `app/content/nights.ts` |
-| The weekly posters used until a night has its own artwork | `app/content/artwork.ts`, images in `public/artwork/` |
+| The weekly posters used until a night has its own artwork (until the back office has them) | `app/content/artwork.ts`, images in `public/artwork/` |
+| The booking pages' intros, ticketing partner and prices, birthday packages and booth options (until the back office has them) | `app/content/pages.ts` |
 | Brand: palette, colourways, hours, venue, contact email and Instagram, nav, copy | `app/brand/brand.ts` |
 | FAQs and getting there | `app/content/faq.ts` |
 | Enquiry forms (birthdays, booths, careers, contact): fields and messages | `app/content/enquiries.ts` |
@@ -82,11 +85,11 @@ The Studio keeps itself on the latest Sanity release. Changing the content model
 | Structured data, sitemap, robots.txt, llms.txt | `app/lib/structuredData.ts`, `app/routes/sitemap.ts`, `robots.ts`, `llms.ts` |
 | The share card and analytics tags | `public/share/`, `app/components/SiteMeta.tsx`, `app/lib/analytics.ts` |
 
-**The calendar fills itself in.** Club Casa runs every Saturday, so the site lists the next eight Saturdays as placeholders ("Club Casa", line-up to be announced, tickets soon), each with one of the brand's posts as its artwork. To announce a night, add it in the back office, or to `app/content/nights.ts` under its date slug: whatever you give it (title, artwork, line-up, set times, `ticketUrl`) replaces the placeholder for that Saturday. Set `status: 'on-sale'` with a `ticketUrl` to turn its button into **Get tickets**, and `lineupConfirmed: true` once the line-up is real bookings. One-off nights on other days work the same way.
+**The calendar fills itself in.** Club Casa runs every Saturday, so the site lists the next eight Saturdays as placeholders ("Club Casa", line-up to be announced, tickets soon), each with one of the brand's posts as its artwork. The back office keeps the same eight in Coming up, wearing the same posters, and a night marked Cancelled there leaves the calendar. To announce a night, add it in the back office, or to `app/content/nights.ts` under its date slug: whatever you give it (title, artwork, line-up, set times, `ticketUrl`) replaces the placeholder for that Saturday. Set `status: 'on-sale'` with a `ticketUrl` to turn its button into **Get tickets**, and `lineupConfirmed: true` once the line-up is real bookings. One-off nights on other days work the same way.
 
 To hold names back, give an act a `phase` and the night a `phases` entry with the date it's revealed: `{ phase: 2, at: '2026-10-30T18:00:00+11:00' }`.
 
-**Placeholders.** The brief asks for nothing to be invented: details that aren't confirmed yet show as a dashed "To be confirmed" placeholder until they're filled in. That's the contact email and Instagram (Venue & contact in the back office, or `brand.contact` in `app/brand/brand.ts`), entry prices (each night's "Tickets from"), the ticketing partner, birthday packages, booth options and the dress code (the FAQs, in the back office or `app/content/faq.ts`, and on those pages).
+**Placeholders.** The brief asks for nothing to be invented: details that aren't confirmed yet show as a dashed "To be confirmed" placeholder until they're filled in. That's the contact email and Instagram (Venue & contact in the back office, or `brand.contact` in `app/brand/brand.ts`), entry prices (each night's "Tickets from", and Tickets in the back office), the ticketing partner (Tickets), birthday packages (Birthdays), booth options (Booths) and the dress code (the FAQs, in the back office or `app/content/faq.ts`, and on those pages).
 
 ## Brand kit
 

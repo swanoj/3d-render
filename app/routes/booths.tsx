@@ -2,10 +2,11 @@ import { Link } from 'react-router'
 import type { Route } from './+types/booths'
 import { brand } from '../brand/brand'
 import { EnquiryForm } from '../components/EnquiryForm'
+import { Offers } from '../components/Offers'
 import { PageHero } from '../components/PageHero'
 import { Pending } from '../components/Pending'
 import { Scribble } from '../components/Scribble'
-import { getSaturdays } from '../content/content.server'
+import { getPage, getSaturdays } from '../content/content.server'
 import { requestNow } from '../lib/nightOf'
 import { seo } from '../lib/seo'
 
@@ -17,16 +18,18 @@ export function meta() {
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
-  return { saturdays: await getSaturdays(requestNow(request)) }
+  const [saturdays, page] = await Promise.all([getSaturdays(requestNow(request)), getPage('booths')])
+  return { saturdays, page }
 }
 
 export default function Booths({ loaderData }: Route.ComponentProps) {
+  const { options } = loaderData.page
   return (
     <>
       <PageHero
         label="Reservations & VIP"
         title="Booths"
-        intro="Reserve a booth for you and your group, for the whole night. Send an enquiry with your date and group size and we’ll come back to you with availability."
+        intro={loaderData.page.intro}
         mark="logo-stacked-stroke"
       />
 
@@ -36,9 +39,13 @@ export default function Booths({ loaderData }: Route.ComponentProps) {
             The booths
             <Scribble kind="underline" className="enquiry-aside-underline" />
           </h2>
-          <p className="mono">
-            <Pending>Booth options and VIP inclusions</Pending>
-          </p>
+          {options.length ? (
+            <Offers offers={options} />
+          ) : (
+            <p className="mono">
+              <Pending>Booth options and VIP inclusions</Pending>
+            </p>
+          )}
           <p className="mono">
             Booths are booked by enquiry for now. Tell us your Saturday and how many are coming and we’ll confirm what’s
             available.

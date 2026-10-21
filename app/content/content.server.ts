@@ -7,9 +7,10 @@ import { faq, gettingThere } from './faq'
 import { houseRules, room } from './house'
 import { nights } from './nights'
 import { cmsSite } from './cms.server'
+import { pages, type Pages } from './pages'
 import { photosFor } from './photos'
 import { mixes } from './radio'
-import type { Act, Night, NightView, Photo, ShownAct } from './types'
+import type { Act, Artwork, Night, NightView, Photo, ShownAct } from './types'
 
 /*
  * The content API route loaders call: the typed files in this folder, with what the team publishes in the back
@@ -77,9 +78,10 @@ function melbourneDate(at: number) {
 
 /**
  * Every Saturday from the one in progress (or the next) for WEEKS_AHEAD weeks, as placeholders: the brand's hours,
- * no line-up, tickets soon, and the brand's posts in turn as artwork.
+ * no line-up, tickets soon, and the weekly posters in turn as artwork. The back office keeps the same Saturdays in
+ * Coming up, with the same posters (studio/lib/weekly.ts).
  */
-function weeklyNights(now: number): Night[] {
+function weeklyNights(now: number, artwork: Artwork[]): Night[] {
   // From a day back, so a Saturday night still running into Sunday morning is included.
   const { date, weekday } = melbourneDate(now - DAY)
   const daysToSaturday = (6 - weekday + 7) % 7
@@ -94,7 +96,7 @@ function weeklyNights(now: number): Night[] {
       startsAt: `${slug}T${brand.hours.opens}:00${melbourneOffset(doors)}`,
       closes: '5AM',
       mood: 'charcoal',
-      artwork: weeklyArtwork[weekNumber % weeklyArtwork.length],
+      artwork: artwork[weekNumber % artwork.length],
       lineup: [],
       status: 'announced',
       placeholder: true,
@@ -115,8 +117,11 @@ function mergeBySlug<T extends { slug: string }>(files: T[], published: T[] = []
  */
 async function content() {
   const cms = await cmsSite()
+  const off = cms?.off ?? new Set<string>()
   return {
-    nights: mergeBySlug(nights, cms?.nights),
+    nights: mergeBySlug(nights, cms?.nights).filter((night) => !off.has(night.slug)),
+    off,
+    weeklyArtwork: cms?.weeklyArtwork ?? weeklyArtwork,
     artists: mergeBySlug(artists, cms?.artists),
     photos: cms?.photos ?? new Map<string, Photo[]>(),
     faq: cms?.faq ?? faq,
@@ -125,22 +130,33 @@ async function content() {
       email: cms?.contact.email ?? brand.contact.email,
       instagram: cms?.contact.instagram ?? brand.contact.instagram,
     },
+    pages: {
+      tickets: { ...pages.tickets, ...cms?.pages.tickets },
+      birthdays: { ...pages.birthdays, ...cms?.pages.birthdays },
+      booths: { ...pages.booths, ...cms?.pages.booths },
+    } satisfies Pages,
   }
 }
 
-/** The calendar: the weekly placeholders, with any announced night in place of its Saturday. */
-function calendar(now: number, announcedNights: Night[]) {
+/**
+ * The calendar: the weekly placeholders, with any announced night in place of its Saturday (under the Saturday's
+ * date or another address), and without the cancelled ones.
+ */
+function calendar(now: number, { nights: announcedNights, off, weeklyArtwork: artwork }: Awaited<ReturnType<typeof content>>) {
   const announced = new Map(announcedNights.map((night) => [night.slug, night]))
-  const weekly = weeklyNights(now).map((placeholder) => {
-    const night = announced.get(placeholder.slug)
-    announced.delete(placeholder.slug)
-    return night ? { ...night, artwork: night.artwork ?? placeholder.artwork } : placeholder
+  const weekly = weeklyNights(now, artwork).flatMap((placeholder) => {
+    if (off.has(placeholder.slug)) return []
+    const night =
+      announced.get(placeholder.slug) ?? [...announced.values()].find((candidate) => candidate.startsAt.startsWith(placeholder.slug))
+    if (!night) return [placeholder]
+    announced.delete(night.slug)
+    return [{ ...night, artwork: night.artwork ?? placeholder.artwork }]
   })
   return [...weekly, ...announced.values()].sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt))
 }
 
 export async function getNights(now = Date.now()) {
-  const sorted = calendar(now, (await content()).nights)
+  const sorted = calendar(now, await content())
   const upcoming = sorted.filter((night) => Date.parse(night.startsAt) + RUNNING_TIME > now)
   // The archive is for nights that were announced; an empty placeholder Saturday isn't worth listing.
   const past = sorted.filter((night) => !night.placeholder && Date.parse(night.startsAt) + RUNNING_TIME <= now).reverse()
@@ -159,8 +175,10 @@ export async function getSaturdays(now = Date.now()): Promise<[string, string][]
 }
 
 export async function getNight(slug: string, now = Date.now()) {
-  const night = calendar(now, (await content()).nights).find((candidate) => candidate.slug === slug)
-  return night ? viewNight(night, now) : null
+  const night = calendar(now, await content()).find((candidate) => candidate.slug === slug)
+  // A Saturday that came and went with nothing announced has no page, just as it isn't in the archive.
+  if (!night || (night.placeholder && Date.parse(night.startsAt) + RUNNING_TIME <= now)) return null
+  return viewNight(night, now)
 }
 
 export async function getArtist(slug: string, now = Date.now()) {
@@ -196,4 +214,9 @@ export async function getGuide() {
 /** The contact email and Instagram handle, once they're confirmed (in the back office or brand.ts). */
 export async function getContact() {
   return (await content()).contact
+}
+
+/** A booking page's words and details: Tickets, Birthdays or Booths. */
+export async function getPage<Name extends keyof Pages>(name: Name): Promise<Pages[Name]> {
+  return (await content()).pages[name]
 }

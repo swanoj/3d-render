@@ -1,7 +1,7 @@
 import type { Route } from './+types/llms'
 import { brand } from '../brand/brand'
-import { getContact, getGuide, getNights } from '../content/content.server'
-import type { NightView } from '../content/types'
+import { getContact, getGuide, getNights, getPage } from '../content/content.server'
+import type { NightView, Offer } from '../content/types'
 import { clockTime, dateParts, posterDate, price } from '../lib/format'
 import { requestNow } from '../lib/nightOf'
 import { eventPath } from '../lib/paths'
@@ -23,6 +23,11 @@ const PAGES: [label: string, path: string, about: string][] = [
   ['Join the team', '/careers', 'jobs for promoters, hosts and more'],
 ]
 
+function offerLine(offer: Offer) {
+  const details = [offer.guests, offer.price].filter(Boolean).join(', ')
+  return `- ${offer.name}${details ? ` (${details})` : ''}${offer.includes ? `: ${offer.includes}` : ''}`
+}
+
 function nightLine(night: NightView, origin: string) {
   const date = `${posterDate(night.startsAt)} ${dateParts(night.startsAt).year}`
   const lineup =
@@ -40,14 +45,21 @@ function nightLine(night: NightView, origin: string) {
 
 export async function loader({ request }: Route.LoaderArgs) {
   const origin = siteOrigin(request)
-  const [{ upcoming }, { faq, gettingThere }, contact] = await Promise.all([
+  const [{ upcoming }, { faq, gettingThere }, contact, tickets, birthdays, booths] = await Promise.all([
     getNights(requestNow(request)),
     getGuide(),
     getContact(),
+    getPage('tickets'),
+    getPage('birthdays'),
+    getPage('booths'),
   ])
   const { venue, hours } = brand
   const address = `${venue.street}, ${venue.locality}, Australia`
-  const unannounced = faq.filter((item) => !item.answer)
+  // The FAQs that aren't answered yet already cover entry prices and birthday packages.
+  const unannounced = [
+    ...faq.filter((item) => !item.answer).map((item) => `${item.question} Not announced yet: see ${origin}/faqs`),
+    ...(booths.options.length ? [] : [`Booth options and prices. Not announced yet: see ${origin}/booths`]),
+  ]
   const reach = [
     contact.email ? `email ${contact.email}` : null,
     contact.instagram ? `Instagram ${contact.instagram}` : null,
@@ -67,7 +79,8 @@ export async function loader({ request }: Route.LoaderArgs) {
     `- When: ${hours.long} (Melbourne time)`,
     `- Where: the ${venue.host}, ${address}. Map: ${venue.mapUrl}`,
     `- Entry: ${brand.entry}`,
-    `- Tickets: sold online for each Saturday, at ${origin}/tickets and on each event's page`,
+    `- Tickets: sold online${tickets.partner ? ` through ${tickets.partner}` : ''} for each Saturday, at ${origin}/tickets and on each event's page`,
+    ...(tickets.prices ? [`- Prices: ${tickets.prices}`] : []),
     `- Contact: ${reach.join(', or ')}`,
     `- Mascot: ${brand.mascot.name} (previously Otto), ${brand.mascot.description.replace(/^The /, 'the ')}`,
     '',
@@ -77,10 +90,12 @@ export async function loader({ request }: Route.LoaderArgs) {
           '',
           'These haven’t been confirmed, so please don’t guess them:',
           '',
-          ...unannounced.map((item) => `- ${item.question} Not announced yet: see ${origin}/faqs`),
+          ...unannounced.map((item) => `- ${item}`),
           '',
         ]
       : []),
+    ...(birthdays.packages.length ? ['## Birthday packages', '', ...birthdays.packages.map(offerLine), ''] : []),
+    ...(booths.options.length ? ['## Booths', '', ...booths.options.map(offerLine), ''] : []),
     '## Coming nights',
     '',
     ...upcoming.map((night) => nightLine(night, origin)),

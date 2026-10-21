@@ -12,8 +12,8 @@ const STATUS_LABELS: Record<string, string> = {
 type NightDocument = { status?: string; lineup?: { name?: string }[] }
 
 /**
- * A night at Club Casa. Every Saturday already shows on the site as "Club Casa, line-up to be announced"; adding a
- * night here for that date replaces the placeholder with whatever's filled in.
+ * A night at Club Casa. Every Saturday shows on the site as "Club Casa, line-up to be announced", and the coming eight
+ * are already in Coming up (see lib/weekly.ts): open one and fill it in. A new night is for a one-off on another date.
  */
 export const night = defineType({
   name: 'night',
@@ -32,7 +32,7 @@ export const night = defineType({
       title: 'Doors',
       type: 'datetime',
       group: 'night',
-      description: 'Melbourne time. A new night starts on the coming Saturday at 10PM.',
+      description: 'Melbourne time. Every Saturday is already in Coming up, so a new night is for a one-off on another date.',
       initialValue: () => nextSaturdayDoors(),
       options: { timeStep: 15 },
       validation: (rule) => rule.required(),
@@ -80,6 +80,15 @@ export const night = defineType({
       type: 'boolean',
       group: 'night',
       description: 'Adds the vinyl badge to the night.',
+      initialValue: false,
+    }),
+    defineField({
+      name: 'cancelled',
+      title: 'Cancelled',
+      type: 'boolean',
+      group: 'night',
+      description:
+        'Takes the night off the site, for a closure or a private event. Leave it here rather than deleting it: a deleted Saturday comes back the next time the back office opens.',
       initialValue: false,
     }),
 
@@ -240,15 +249,17 @@ export const night = defineType({
     { title: 'Date, latest first', name: 'startsAtDesc', by: [{ field: 'startsAt', direction: 'desc' }] },
   ],
   preview: {
-    select: { startsAt: 'startsAt', title: 'title', status: 'status', media: 'poster', lineup: 'lineup' },
-    prepare: ({ startsAt, title, status, media, lineup }) => {
+    select: { startsAt: 'startsAt', title: 'title', status: 'status', media: 'poster', lineup: 'lineup', cancelled: 'cancelled' },
+    prepare: ({ startsAt, title, status, media, lineup, cancelled }) => {
       const names = ((lineup as { name?: string }[] | undefined) ?? []).flatMap((act) => (act.name ? [act.name] : []))
       const acts = names.length > 2 ? `${names.slice(0, 2).join(', ')} +${names.length - 2}` : names.join(', ')
       return {
         title: posterDate(startsAt),
-        subtitle: [title && title !== 'Club Casa' ? title : null, STATUS_LABELS[status as string] ?? null, acts || 'Line-up TBA']
-          .filter(Boolean)
-          .join(' · '),
+        subtitle: cancelled
+          ? 'Cancelled: not on the site'
+          : [title && title !== 'Club Casa' ? title : null, STATUS_LABELS[status as string] ?? null, acts || 'Line-up TBA']
+              .filter(Boolean)
+              .join(' · '),
         media,
       }
     },

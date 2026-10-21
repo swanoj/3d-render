@@ -5,7 +5,7 @@ import { Mark } from '../components/Mark'
 import { Pending } from '../components/Pending'
 import { PageHero } from '../components/PageHero'
 import { TicketButton } from '../components/TicketButton'
-import { getNights } from '../content/content.server'
+import { getNights, getPage } from '../content/content.server'
 import { clockTime, dateParts, posterDate } from '../lib/format'
 import { requestNow } from '../lib/nightOf'
 import { eventPath } from '../lib/paths'
@@ -19,19 +19,19 @@ export function meta() {
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const { upcoming } = await getNights(requestNow(request))
-  return { upcoming }
+  const [{ upcoming }, page] = await Promise.all([getNights(requestNow(request)), getPage('tickets')])
+  return { upcoming, page }
 }
 
 export default function Tickets({ loaderData }: Route.ComponentProps) {
-  const { upcoming } = loaderData
+  const { upcoming, page } = loaderData
   const onSale = upcoming.some((night) => night.status === 'on-sale' && night.ticketUrl)
   return (
     <>
       <PageHero
         label={`${brand.hours.days} · ${brand.hours.time}`}
         title="Tickets"
-        intro="Tickets for every Club Casa night are sold online. Pick your Saturday below: each one opens for tickets when it goes on sale."
+        intro={page.intro}
         mark="emblem"
       />
 
@@ -84,14 +84,18 @@ export default function Tickets({ loaderData }: Route.ComponentProps) {
           <div>
             <dt>Where to buy</dt>
             <dd>
-              Online, from each event’s Get tickets button. <Pending>Ticketing partner</Pending>
+              {page.partner ? (
+                `Online through ${page.partner}, from each event’s Get tickets button.`
+              ) : (
+                <>
+                  Online, from each event’s Get tickets button. <Pending>Ticketing partner</Pending>
+                </>
+              )}
             </dd>
           </div>
           <div>
             <dt>Price</dt>
-            <dd>
-              <Pending>Entry prices, shown with each event’s tickets</Pending>
-            </dd>
+            <dd>{page.prices ?? <Pending>Entry prices, shown with each event’s tickets</Pending>}</dd>
           </div>
           <div>
             <dt>Entry</dt>
