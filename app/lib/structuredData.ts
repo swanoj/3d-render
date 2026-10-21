@@ -1,4 +1,5 @@
 import { brand } from '../brand/brand'
+import type { SiteCopy } from '../content/site'
 import type { Artist, NightView } from '../content/types'
 import { localIso, posterDate } from './format'
 import { RUNNING_TIME } from './nightOf'
@@ -7,7 +8,8 @@ import { eventPath } from './paths'
 /*
  * schema.org data for search engines and AI assistants. Every page describes Club Casa the same way: the organisation
  * (the club night), the Prince Bandroom (where it happens), the weekly Saturday series and each night in it, linked by
- * @id so the pieces join up into one picture.
+ * @id so the pieces join up into one picture. The words and the venue's details come from the shared copy (`copy`), as
+ * the back office has it.
  */
 
 type Json = Record<string, unknown>
@@ -19,8 +21,8 @@ const ids = (origin: string) => ({
 })
 
 /** The Prince Bandroom, by its own name, so it matches the venue search engines already know. */
-export function venueJsonLd(): Json {
-  const { venue } = brand
+export function venueJsonLd(copy: SiteCopy): Json {
+  const { venue } = copy
   return {
     '@type': 'MusicVenue',
     name: venue.host,
@@ -42,37 +44,37 @@ export interface Contact {
 }
 
 /** Club Casa itself. The email and Instagram join in once they're confirmed (in the back office or brand.ts). */
-export function organizationJsonLd(origin: string, contact: Contact = brand.contact): Json {
+export function organizationJsonLd(origin: string, copy: SiteCopy, contact: Contact = brand.contact): Json {
   return {
     '@type': 'Organization',
     '@id': ids(origin).organization,
     name: brand.name,
     url: `${origin}/`,
     logo: `${origin}/brand/official/primary-logo.png`,
-    description: brand.description,
-    slogan: brand.tagline,
+    description: copy.description,
+    slogan: copy.tagline,
     ...(contact.email ? { email: contact.email } : {}),
     ...(contact.instagram ? { sameAs: [`https://www.instagram.com/${contact.instagram.replace(/^@/, '')}/`] } : {}),
   }
 }
 
 /** The weekly night as a series: what an assistant needs to answer "what's on at Club Casa, and when?" */
-export function seriesJsonLd(origin: string, nights: NightView[] = []): Json {
+export function seriesJsonLd(origin: string, copy: SiteCopy, nights: NightView[] = []): Json {
   return {
     '@type': 'EventSeries',
     '@id': ids(origin).series,
     name: brand.name,
-    description: brand.description,
+    description: copy.description,
     url: `${origin}/events`,
     organizer: { '@id': ids(origin).organization },
-    location: venueJsonLd(),
+    location: venueJsonLd(copy),
     eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
     typicalAgeRange: '18-',
     eventSchedule: {
       '@type': 'Schedule',
       byDay: 'https://schema.org/Saturday',
-      startTime: brand.hours.opens,
-      endTime: brand.hours.closes,
+      startTime: copy.hours.opens,
+      endTime: copy.hours.closes,
       repeatFrequency: 'P1W',
       scheduleTimezone: brand.timeZone,
     },
@@ -91,11 +93,11 @@ export function seriesJsonLd(origin: string, nights: NightView[] = []): Json {
 }
 
 /** The home page: who the club is, the site, and the series. */
-export function homeJsonLd(origin: string, contact?: Contact): Json {
+export function homeJsonLd(origin: string, copy: SiteCopy, contact?: Contact): Json {
   return {
     '@context': 'https://schema.org',
     '@graph': [
-      organizationJsonLd(origin, contact),
+      organizationJsonLd(origin, copy, contact),
       {
         '@type': 'WebSite',
         '@id': ids(origin).website,
@@ -104,14 +106,14 @@ export function homeJsonLd(origin: string, contact?: Contact): Json {
         inLanguage: brand.locale,
         publisher: { '@id': ids(origin).organization },
       },
-      seriesJsonLd(origin),
+      seriesJsonLd(origin, copy),
     ],
   }
 }
 
 /** The events page: the series with every coming night in it. */
-export function eventsJsonLd(origin: string, nights: NightView[]): Json {
-  return { '@context': 'https://schema.org', '@graph': [organizationJsonLd(origin), seriesJsonLd(origin, nights)] }
+export function eventsJsonLd(origin: string, copy: SiteCopy, nights: NightView[]): Json {
+  return { '@context': 'https://schema.org', '@graph': [organizationJsonLd(origin, copy), seriesJsonLd(origin, copy, nights)] }
 }
 
 function eventName(night: NightView) {
@@ -120,7 +122,7 @@ function eventName(night: NightView) {
 }
 
 /** One night, for Google's event results and for assistants answering "who's playing on Saturday?" */
-export function eventJsonLd(night: NightView, origin: string, description: string): Json {
+export function eventJsonLd(night: NightView, origin: string, description: string, copy: SiteCopy): Json {
   const url = `${origin}${eventPath(night)}`
   const confirmed = night.lineupConfirmed && night.lineup.length > 0
   const performers = night.acts.flatMap((act) =>
@@ -141,7 +143,7 @@ export function eventJsonLd(night: NightView, origin: string, description: strin
     eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
     typicalAgeRange: '18-',
     ...(night.artwork ? { image: [new URL(night.artwork.src, origin).href] } : {}),
-    location: venueJsonLd(),
+    location: venueJsonLd(copy),
     organizer: { '@type': 'Organization', '@id': ids(origin).organization, name: brand.name, url: `${origin}/` },
     superEvent: { '@id': ids(origin).series },
     ...(confirmed && performers.length ? { performer: performers } : {}),

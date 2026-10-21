@@ -7,7 +7,7 @@ import { RouteError } from '../components/RouteError'
 import { getArtist } from '../content/content.server'
 import type { RouteHandle } from '../lib/mood'
 import { requestNow } from '../lib/nightOf'
-import { seo } from '../lib/seo'
+import { seo, siteCopy } from '../lib/seo'
 import { siteOrigin } from '../lib/site.server'
 import { artistJsonLd, breadcrumbJsonLd } from '../lib/structuredData'
 
@@ -21,11 +21,12 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   return { ...found, origin: siteOrigin(request), shareImage }
 }
 
-export function meta({ loaderData }: Route.MetaArgs) {
-  if (!loaderData) return seo({ title: 'Not found' })
+export function meta({ loaderData, matches }: Route.MetaArgs) {
+  const copy = siteCopy(matches)
+  if (!loaderData) return seo(copy, { title: 'Not found' })
   const { artist, origin } = loaderData
   return [
-    ...seo({ title: artist.name, description: `${artist.name} at Club Casa. ${artist.bio}` }),
+    ...seo(copy, { title: artist.name, description: `${artist.name} at Club Casa. ${artist.bio}` }),
     { 'script:ld+json': artistJsonLd(artist, origin) },
     { 'script:ld+json': breadcrumbJsonLd(origin, [{ name: artist.name, path: `/artists/${artist.slug}` }]) },
   ]

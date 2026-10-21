@@ -6,10 +6,12 @@ import { weeklyArtwork } from './artwork'
 import { faq, gettingThere } from './faq'
 import { houseRules, room } from './house'
 import { nights } from './nights'
-import { cmsSite } from './cms.server'
+import { cmsSite, type CmsForm, type CmsSite } from './cms.server'
+import { enquiries, type Enquiry, type EnquiryKind } from './enquiries'
 import { pages, type Pages } from './pages'
 import { photosFor } from './photos'
 import { mixes } from './radio'
+import { clock, hoursFrom, site, venueFrom, type Hours, type SiteCopy } from './site'
 import type { Act, Artwork, Night, NightView, Photo, ShownAct } from './types'
 
 /*
@@ -77,24 +79,24 @@ function melbourneDate(at: number) {
 }
 
 /**
- * Every Saturday from the one in progress (or the next) for WEEKS_AHEAD weeks, as placeholders: the brand's hours,
+ * Every Saturday from the one in progress (or the next) for WEEKS_AHEAD weeks, as placeholders: the opening hours,
  * no line-up, tickets soon, and the weekly posters in turn as artwork. The back office keeps the same Saturdays in
- * Coming up, with the same posters (studio/lib/weekly.ts).
+ * Coming up, with the same hours and posters (studio/lib/weekly.ts).
  */
-function weeklyNights(now: number, artwork: Artwork[]): Night[] {
+function weeklyNights(now: number, artwork: Artwork[], hours: Hours): Night[] {
   // From a day back, so a Saturday night still running into Sunday morning is included.
   const { date, weekday } = melbourneDate(now - DAY)
   const daysToSaturday = (6 - weekday + 7) % 7
   const first = Date.parse(`${date}T12:00:00Z`) + daysToSaturday * DAY
   return Array.from({ length: WEEKS_AHEAD }, (_, week) => {
     const slug = new Date(first + week * 7 * DAY).toISOString().slice(0, 10)
-    const doors = Date.parse(`${slug}T22:00:00+10:00`)
+    const doors = Date.parse(`${slug}T${hours.opens}:00+10:00`)
     const weekNumber = Math.round(Date.parse(`${slug}T00:00:00Z`) / (7 * DAY))
     return {
       slug,
       title: brand.name,
-      startsAt: `${slug}T${brand.hours.opens}:00${melbourneOffset(doors)}`,
-      closes: '5AM',
+      startsAt: `${slug}T${hours.opens}:00${melbourneOffset(doors)}`,
+      closes: clock(hours.closes),
       mood: 'charcoal',
       artwork: artwork[weekNumber % artwork.length],
       lineup: [],
@@ -102,6 +104,41 @@ function weeklyNights(now: number, artwork: Artwork[]): Night[] {
       placeholder: true,
     }
   })
+}
+
+/** The shared words and details: the site's own (site.ts), with whatever the back office has filled in over them. */
+function siteCopy(published?: CmsSite['site']): SiteCopy {
+  if (!published) return site
+  const hours = { ...site.hours, ...published.hours }
+  return {
+    ...site,
+    ...published.words,
+    newsletter: { ...site.newsletter, ...published.newsletter },
+    venue: venueFrom({ ...site.venue, mapUrl: undefined, ...published.address }),
+    hours: hoursFrom(hours.opens, hours.closes),
+  }
+}
+
+/** An enquiry form with the back office's words for it (its heading, button, thank-you and field labels). */
+function withWords(form: Enquiry, words?: CmsForm): Enquiry {
+  if (!words) return form
+  const text = (value?: string) => value?.trim() || undefined
+  return {
+    ...form,
+    title: text(words.title) ?? form.title,
+    submit: text(words.submit) ?? form.submit,
+    sent: text(words.sent) ?? form.sent,
+    fields: form.fields.map((field) => {
+      const own = words.fields?.find((candidate) => candidate.name === field.name)
+      const options = (own?.options ?? []).flatMap((option) => text(option) ?? [])
+      return {
+        ...field,
+        label: text(own?.label) ?? field.label,
+        ...(text(own?.placeholder) ? { placeholder: text(own?.placeholder) } : {}),
+        ...(field.options && options.length ? { options } : {}),
+      }
+    }),
+  }
 }
 
 /** Items from the content files, with any the back office has published under the same slug in their place. */
@@ -118,10 +155,12 @@ function mergeBySlug<T extends { slug: string }>(files: T[], published: T[] = []
 async function content() {
   const cms = await cmsSite()
   const off = cms?.off ?? new Set<string>()
+  const plans = cms?.pages.home.plans
   return {
     nights: mergeBySlug(nights, cms?.nights).filter((night) => !off.has(night.slug)),
     off,
     weeklyArtwork: cms?.weeklyArtwork ?? weeklyArtwork,
+    site: siteCopy(cms?.site),
     artists: mergeBySlug(artists, cms?.artists),
     photos: cms?.photos ?? new Map<string, Photo[]>(),
     faq: cms?.faq ?? faq,
@@ -131,10 +170,22 @@ async function content() {
       instagram: cms?.contact.instagram ?? brand.contact.instagram,
     },
     pages: {
+      home: {
+        plans: {
+          tickets: { ...pages.home.plans.tickets, ...plans?.tickets },
+          birthdays: { ...pages.home.plans.birthdays, ...plans?.birthdays },
+          booths: { ...pages.home.plans.booths, ...plans?.booths },
+        },
+      },
+      events: { ...pages.events, ...cms?.pages.events },
       tickets: { ...pages.tickets, ...cms?.pages.tickets },
       birthdays: { ...pages.birthdays, ...cms?.pages.birthdays },
       booths: { ...pages.booths, ...cms?.pages.booths },
+      faqs: { ...pages.faqs, ...cms?.pages.faqs },
+      contact: { ...pages.contact, ...cms?.pages.contact },
+      careers: { ...pages.careers, ...cms?.pages.careers },
     } satisfies Pages,
+    forms: cms?.forms ?? {},
   }
 }
 
@@ -142,9 +193,9 @@ async function content() {
  * The calendar: the weekly placeholders, with any announced night in place of its Saturday (under the Saturday's
  * date or another address), and without the cancelled ones.
  */
-function calendar(now: number, { nights: announcedNights, off, weeklyArtwork: artwork }: Awaited<ReturnType<typeof content>>) {
+function calendar(now: number, { nights: announcedNights, off, weeklyArtwork: artwork, site: copy }: Awaited<ReturnType<typeof content>>) {
   const announced = new Map(announcedNights.map((night) => [night.slug, night]))
-  const weekly = weeklyNights(now, artwork).flatMap((placeholder) => {
+  const weekly = weeklyNights(now, artwork, copy.hours).flatMap((placeholder) => {
     if (off.has(placeholder.slug)) return []
     const night =
       announced.get(placeholder.slug) ?? [...announced.values()].find((candidate) => candidate.startsAt.startsWith(placeholder.slug))
@@ -216,7 +267,17 @@ export async function getContact() {
   return (await content()).contact
 }
 
-/** A booking page's words and details: Tickets, Birthdays or Booths. */
+/** A page's own words (and, for the booking pages, its details). */
 export async function getPage<Name extends keyof Pages>(name: Name): Promise<Pages[Name]> {
   return (await content()).pages[name]
+}
+
+/** The words and details every page shares: the tagline, the About text, the venue, the hours and so on. */
+export async function getSite() {
+  return (await content()).site
+}
+
+/** An enquiry form, worded as the back office has it. /api/enquiry checks submissions against the same. */
+export async function getEnquiry(kind: EnquiryKind) {
+  return withWords(enquiries[kind], (await content()).forms[kind])
 }

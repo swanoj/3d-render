@@ -1,5 +1,4 @@
-import { brand } from '../brand/brand'
-import { useContact } from '../lib/useSite'
+import { useContact, useCopy } from '../lib/useSite'
 import { Pending } from './Pending'
 
 /**
@@ -7,7 +6,7 @@ import { Pending } from './Pending'
  * email and Instagram show as marked placeholders until they're set in the back office (Venue & contact).
  */
 export function VenueDetails({ className }: { className?: string }) {
-  const { venue, hours } = brand
+  const { venue, hours } = useCopy()
   const contact = useContact()
   return (
     <dl className={['venue-details', className].filter(Boolean).join(' ')}>

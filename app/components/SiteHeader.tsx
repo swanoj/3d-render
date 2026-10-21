@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, useLocation } from 'react-router'
 import { brand } from '../brand/brand'
+import { useCopy } from '../lib/useSite'
 import { Mark } from './Mark'
 import { NavPeek } from './NavPeek'
 import type { PlanKind } from './PlanArt'
@@ -12,6 +13,7 @@ const PEEKS: Record<string, PlanKind> = { '/tickets': 'tickets', '/birthdays': '
 
 export function SiteHeader() {
   const { pathname } = useLocation()
+  const { hours, venue } = useCopy()
   // Which link's card is showing: a link's path, "pill" for Get tickets, or none.
   const [peek, setPeek] = useState<string | null>(null)
   const peekProps = (key: string) => ({
@@ -106,7 +108,7 @@ export function SiteHeader() {
             Get tickets
           </Link>
           <p className="mono">
-            {brand.hours.days} · {brand.hours.time} · {brand.venue.host}, {brand.venue.street}, {brand.venue.locality}
+            {hours.days} · {hours.time} · {venue.host}, {venue.street}, {venue.locality}
           </p>
         </div>
       </Sheet>

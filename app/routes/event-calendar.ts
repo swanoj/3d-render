@@ -1,10 +1,10 @@
 import type { Route } from './+types/event-calendar'
 import { brand } from '../brand/brand'
-import { getNight } from '../content/content.server'
+import { getNight, getSite } from '../content/content.server'
 import { clockTime } from '../lib/format'
 import { RUNNING_TIME } from '../lib/nightOf'
 
-/** Nights run 10PM until 5AM. */
+/** How long a night runs (doors to close). */
 const LENGTH = RUNNING_TIME
 
 /** 2026-10-16T11:00:00.000Z → 20261016T110000Z */
@@ -36,14 +36,13 @@ function fold(line: string) {
 
 /** An .ics file for one event, so "Add to calendar" works in every calendar app. */
 export async function loader({ params, request }: Route.LoaderArgs) {
-  const night = await getNight(params.slug, Date.now())
+  const [night, { venue, entry }] = await Promise.all([getNight(params.slug, Date.now()), getSite()])
   if (!night) throw new Response('Event not found', { status: 404 })
 
-  const { venue } = brand
   const start = new Date(night.startsAt)
   const page = new URL(`/events/${night.slug}`, request.url).href
   const lineup = night.lineupConfirmed && night.lineup.length ? ` With ${night.lineup.join(', ')}.` : ''
-  const description = `${night.title}, ${clockTime(night.startsAt)} until ${night.closes}.${lineup} ${brand.entry} ${page}`
+  const description = `${night.title}, ${clockTime(night.startsAt)} until ${night.closes}.${lineup} ${entry} ${page}`
 
   const lines = [
     'BEGIN:VCALENDAR',

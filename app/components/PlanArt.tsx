@@ -2,6 +2,7 @@ import { useEffect, useId, useRef } from 'react'
 import { palette } from '../brand/brand'
 import { cannotHover, gsap, prefersReducedMotion, ScrollTrigger, seeded, useGSAP } from '../lib/gsap'
 import { markUrl } from '../lib/marks'
+import { useCopy } from '../lib/useSite'
 
 /*
  * The little shows behind Tickets, Birthdays and Booths. Each is an SVG scene built from the official marks (Casa,
@@ -89,6 +90,7 @@ const BARCODE = (() => {
 })()
 
 function TicketScene({ id }: { id: string }) {
+  const { hours, venue } = useCopy()
   return (
     <>
       <defs>
@@ -112,7 +114,7 @@ function TicketScene({ id }: { id: string }) {
                 EVERY SATURDAY
               </text>
               <text x="52" y="118" fill={cream} opacity="0.85" style={{ font: `400 7px ${MONO}`, letterSpacing: '0.4px' }}>
-                10PM – 5AM · PRINCE BANDROOM
+                {`${hours.time} · ${venue.host}`.toUpperCase()}
               </text>
               {BARCODE.map((bar) => (
                 <rect key={bar.x} x={bar.x} y="127" width={bar.w} height="13" fill={cream} opacity="0.9" />

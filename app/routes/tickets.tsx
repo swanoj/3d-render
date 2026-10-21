@@ -9,12 +9,14 @@ import { getNights, getPage } from '../content/content.server'
 import { clockTime, dateParts, posterDate } from '../lib/format'
 import { requestNow } from '../lib/nightOf'
 import { eventPath } from '../lib/paths'
-import { seo } from '../lib/seo'
+import { seo, siteCopy } from '../lib/seo'
+import { useCopy } from '../lib/useSite'
 
-export function meta() {
-  return seo({
+export function meta({ matches }: Route.MetaArgs) {
+  const copy = siteCopy(matches)
+  return seo(copy, {
     title: 'Tickets',
-    description: `Tickets for ${brand.name}: ${brand.hours.long}, at the ${brand.venue.host}, ${brand.venue.suburb}.`,
+    description: `Tickets for ${brand.name}: ${copy.hours.long}, at the ${copy.venue.host}, ${copy.venue.suburb}.`,
   })
 }
 
@@ -25,11 +27,12 @@ export async function loader({ request }: Route.LoaderArgs) {
 
 export default function Tickets({ loaderData }: Route.ComponentProps) {
   const { upcoming, page } = loaderData
+  const { hours, venue, entry } = useCopy()
   const onSale = upcoming.some((night) => night.status === 'on-sale' && night.ticketUrl)
   return (
     <>
       <PageHero
-        label={`${brand.hours.days} · ${brand.hours.time}`}
+        label={`${hours.days} · ${hours.time}`}
         title="Tickets"
         intro={page.intro}
         mark="emblem"
@@ -58,7 +61,7 @@ export default function Tickets({ loaderData }: Route.ComponentProps) {
                     {posterDate(night.startsAt)}
                   </Link>
                   <p className="mono">
-                    {night.title} · {clockTime(night.startsAt)} – {night.closes} · {brand.venue.host}
+                    {night.title} · {clockTime(night.startsAt)} – {night.closes} · {venue.host}
                   </p>
                   <p className="mono ticket-lineup">
                     {night.lineup.length ? night.lineup.join(' • ') : 'Line-up to be announced'}
@@ -99,7 +102,7 @@ export default function Tickets({ loaderData }: Route.ComponentProps) {
           </div>
           <div>
             <dt>Entry</dt>
-            <dd>{brand.entry}</dd>
+            <dd>{entry}</dd>
           </div>
           <div>
             <dt>Groups</dt>

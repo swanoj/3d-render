@@ -1,5 +1,6 @@
 import { HelpCircleIcon } from '@sanity/icons/HelpCircle'
 import { defineArrayMember, defineField, defineType } from 'sanity'
+import { introField, labelField } from './pages'
 
 /**
  * The FAQ page, in order. A question without an answer shows its placeholder ("to be confirmed") on the site and
@@ -11,6 +12,8 @@ export const faqPage = defineType({
   type: 'document',
   icon: HelpCircleIcon,
   fields: [
+    labelField('the FAQs page'),
+    introField('the FAQs page'),
     defineField({
       name: 'items',
       title: 'Questions',

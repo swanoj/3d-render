@@ -1,6 +1,6 @@
 import type { Route } from './+types/llms'
 import { brand } from '../brand/brand'
-import { getContact, getGuide, getNights, getPage } from '../content/content.server'
+import { getContact, getGuide, getNights, getPage, getSite } from '../content/content.server'
 import type { NightView, Offer } from '../content/types'
 import { clockTime, dateParts, posterDate, price } from '../lib/format'
 import { requestNow } from '../lib/nightOf'
@@ -45,15 +45,16 @@ function nightLine(night: NightView, origin: string) {
 
 export async function loader({ request }: Route.LoaderArgs) {
   const origin = siteOrigin(request)
-  const [{ upcoming }, { faq, gettingThere }, contact, tickets, birthdays, booths] = await Promise.all([
+  const [{ upcoming }, { faq, gettingThere }, contact, tickets, birthdays, booths, copy] = await Promise.all([
     getNights(requestNow(request)),
     getGuide(),
     getContact(),
     getPage('tickets'),
     getPage('birthdays'),
     getPage('booths'),
+    getSite(),
   ])
-  const { venue, hours } = brand
+  const { venue, hours } = copy
   const address = `${venue.street}, ${venue.locality}, Australia`
   // The FAQs that aren't answered yet already cover entry prices and birthday packages.
   const unannounced = [
@@ -69,16 +70,16 @@ export async function loader({ request }: Route.LoaderArgs) {
   const text = [
     `# ${brand.name}`,
     '',
-    `> ${brand.name} is a warm, analogue-inspired club night of forward-thinking house music. ${hours.long}, at the ${venue.host}, ${address} (Melbourne). ${brand.entry}`,
+    `> ${brand.name} is a warm, analogue-inspired club night of forward-thinking house music. ${hours.long}, at the ${venue.host}, ${address} (Melbourne). ${copy.entry}`,
     '',
-    brand.intro,
+    copy.about,
     '',
     '## Key facts',
     '',
-    `- What: a weekly club night of house music, "${brand.tagline}"`,
+    `- What: a weekly club night of house music, "${copy.tagline}"`,
     `- When: ${hours.long} (Melbourne time)`,
     `- Where: the ${venue.host}, ${address}. Map: ${venue.mapUrl}`,
-    `- Entry: ${brand.entry}`,
+    `- Entry: ${copy.entry}`,
     `- Tickets: sold online${tickets.partner ? ` through ${tickets.partner}` : ''} for each Saturday, at ${origin}/tickets and on each event's page`,
     ...(tickets.prices ? [`- Prices: ${tickets.prices}`] : []),
     `- Contact: ${reach.join(', or ')}`,

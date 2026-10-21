@@ -2,32 +2,18 @@ import { Analytics } from '@vercel/analytics/react'
 import { SpeedInsights } from '@vercel/speed-insights/react'
 import { MarketingTags } from './MarketingTags'
 import { useLocation, useMatches } from 'react-router'
+import { site as ownCopy, type ShareImage, type SiteCopy } from '../content/site'
 import type { SiteConfig } from '../lib/site.server'
 import { homeJsonLd, type Contact } from '../lib/structuredData'
 
-/** What a link to the site looks like when it's shared, unless the page has a picture of its own. */
-const SHARE_CARD: ShareImage = {
-  src: '/share/club-casa.png',
-  alt: 'Club Casa: every Saturday, 10PM until 5AM, at the Prince Bandroom, St Kilda',
-  width: 1200,
-  height: 630,
-}
-
-export interface ShareImage {
-  src: string
-  alt: string
-  width?: number
-  height?: number
-}
-
 /** A page's own share picture (an event's poster, say): a loader can return one as `shareImage`. */
-function useShareImage() {
+function useShareImage(fallback: ShareImage) {
   const matches = useMatches()
   for (let i = matches.length - 1; i >= 0; i--) {
     const image = (matches[i].loaderData as { shareImage?: ShareImage } | undefined)?.shareImage
     if (image?.src) return image
   }
-  return SHARE_CARD
+  return fallback
 }
 
 function JsonLd({ data }: { data: unknown }) {
@@ -62,9 +48,10 @@ function GoogleAnalytics({ id }: { id: string }) {
  * may index this host, site verification, the home page's structured data, Google Analytics, and Tag Manager and
  * the ad pixels.
  */
-export function SiteHead({ site }: { site?: SiteConfig & { contact?: Contact } }) {
+export function SiteHead({ site }: { site?: SiteConfig & { contact?: Contact; copy?: SiteCopy } }) {
   const { pathname } = useLocation()
-  const image = useShareImage()
+  // Unless the page has its own: the share picture from the back office (About Club Casa), or the site's.
+  const image = useShareImage(site?.copy?.shareImage ?? ownCopy.shareImage)
   if (!site) return null
   const canonical = `${site.origin}${pathname}`
   const imageUrl = new URL(image.src, site.origin).href
@@ -82,7 +69,7 @@ export function SiteHead({ site }: { site?: SiteConfig & { contact?: Contact } }
       {!site.indexable && <meta name="robots" content="noindex, nofollow" />}
       {site.verification.google && <meta name="google-site-verification" content={site.verification.google} />}
       {site.verification.bing && <meta name="msvalidate.01" content={site.verification.bing} />}
-      {pathname === '/' && <JsonLd data={homeJsonLd(site.origin, site.contact)} />}
+      {pathname === '/' && <JsonLd data={homeJsonLd(site.origin, site.copy ?? ownCopy, site.contact)} />}
       {site.googleAnalyticsId && <GoogleAnalytics id={site.googleAnalyticsId} />}
       <MarketingTags tags={site.tags} googleAnalytics={Boolean(site.googleAnalyticsId)} />
     </>

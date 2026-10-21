@@ -6,30 +6,32 @@ import { Offers } from '../components/Offers'
 import { PageHero } from '../components/PageHero'
 import { Pending } from '../components/Pending'
 import { Scribble } from '../components/Scribble'
-import { getPage, getSaturdays } from '../content/content.server'
+import { getEnquiry, getPage, getSaturdays } from '../content/content.server'
 import { requestNow } from '../lib/nightOf'
-import { seo } from '../lib/seo'
+import { seo, siteCopy } from '../lib/seo'
 
-export function meta() {
-  return seo({
+export function meta({ matches }: Route.MetaArgs) {
+  const copy = siteCopy(matches)
+  return seo(copy, {
     title: 'Booths',
-    description: `Booth reservations and VIP at ${brand.name}, every Saturday at the ${brand.venue.host}. Send a booth enquiry.`,
+    description: `Booth reservations and VIP at ${brand.name}, every Saturday at the ${copy.venue.host}. Send a booth enquiry.`,
   })
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const [saturdays, page] = await Promise.all([getSaturdays(requestNow(request)), getPage('booths')])
-  return { saturdays, page }
+  const [saturdays, page, form] = await Promise.all([getSaturdays(requestNow(request)), getPage('booths'), getEnquiry('booth')])
+  return { saturdays, page, form }
 }
 
 export default function Booths({ loaderData }: Route.ComponentProps) {
-  const { options } = loaderData.page
+  const { page, form } = loaderData
+  const { options } = page
   return (
     <>
       <PageHero
-        label="Reservations & VIP"
+        label={page.label}
         title="Booths"
-        intro={loaderData.page.intro}
+        intro={page.intro}
         mark="logo-stacked-stroke"
       />
 
@@ -59,9 +61,9 @@ export default function Booths({ loaderData }: Route.ComponentProps) {
         </aside>
         <div className="enquiry-card">
           <h2 id="booth-form-title" className="label">
-            Booth enquiry
+            {form.title}
           </h2>
-          <EnquiryForm kind="booth" saturdays={loaderData.saturdays} />
+          <EnquiryForm kind="booth" enquiry={form} saturdays={loaderData.saturdays} />
         </div>
       </section>
     </>

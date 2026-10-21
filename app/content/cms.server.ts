@@ -1,15 +1,18 @@
 import { brand, isMoodId } from '../brand/brand'
 import { localIso, posterDate } from '../lib/format'
 import { cmsImageUrl, cmsQuery, type SanityImage } from '../lib/sanity.server'
+import { isEnquiryKind, type EnquiryKind } from './enquiries'
 import type { FaqItem } from './faq'
-import type { Pages } from './pages'
+import type { Pages, Plan, Role } from './pages'
+import type { SiteCopy, Venue } from './site'
 import type { Artist, Artwork, Night, NightStatus, Offer, Photo } from './types'
 
 /*
  * What the back office has published, in the shapes the pages already use. One query fetches all of it (it's a
  * small site), and content.server.ts merges it over the content files: a night or act published in the back
  * office replaces the file's one with the same slug, a cancelled night takes its date off the calendar, and the
- * weekly posters, the booking pages, the FAQs and the venue details replace the files' once they've been saved there.
+ * FAQs and getting there replace the files' once they're saved there. For the words (the shared copy, each page's
+ * and the forms'), whatever's filled in replaces the site's own, and anything left blank keeps it.
  */
 
 const CONTENT = /* groq */ `{
@@ -24,12 +27,18 @@ const CONTENT = /* groq */ `{
   "acts": *[_type == "act" && defined(slug.current)] {
     "slug": slug.current, name, from, bio, photo, links[]{ label, url }, mix
   },
-  "weekly": *[_id == "weekly"][0].posters,
+  "weekly": *[_id == "weekly"][0]{ posters, doors, closes },
+  "about": *[_id == "about"][0]{ tagline, about, description, newsletter, shareImage },
+  "settings": *[_id == "settings"][0]{ email, instagram, gettingThere[]{ label, text }, venue, entry },
+  "home": *[_id == "homePage"][0]{ plans },
+  "events": *[_id == "eventsPage"][0]{ intro },
   "tickets": *[_id == "ticketsPage"][0]{ intro, partner, prices },
-  "birthdays": *[_id == "birthdaysPage"][0]{ intro, "offers": packages[]{ name, guests, price, includes } },
-  "booths": *[_id == "boothsPage"][0]{ intro, "offers": options[]{ name, guests, price, includes } },
-  "faq": *[_id == "faqPage"][0].items[]{ question, answer, pending, link },
-  "settings": *[_id == "settings"][0]{ email, instagram, gettingThere[]{ label, text } }
+  "birthdays": *[_id == "birthdaysPage"][0]{ label, intro, "offers": packages[]{ name, guests, price, includes } },
+  "booths": *[_id == "boothsPage"][0]{ label, intro, "offers": options[]{ name, guests, price, includes } },
+  "faqs": *[_id == "faqPage"][0]{ label, intro, items[]{ question, answer, pending, link } },
+  "contact": *[_id == "contactPage"][0]{ label, intro },
+  "careers": *[_id == "careersPage"][0]{ label, intro, roles[]{ title, text } },
+  "forms": *[_type == "enquiryForm"]{ _id, title, submit, sent, fields[]{ name, label, placeholder, options } }
 }`
 
 interface CmsNight {
@@ -62,16 +71,52 @@ interface CmsAct {
 }
 
 type CmsOffer = { name?: string; guests?: string; price?: string; includes?: string }
+type CmsPage = { label?: string; intro?: string }
+type CmsPlans = Partial<Record<keyof Pages['home']['plans'], Partial<Plan>>>
+
+export interface CmsForm {
+  title?: string
+  submit?: string
+  sent?: string
+  fields?: { name?: string; label?: string; placeholder?: string; options?: string[] }[]
+}
 
 interface CmsContent {
   nights?: CmsNight[]
   acts?: CmsAct[]
-  weekly?: SanityImage[] | null
-  tickets?: { intro?: string; partner?: string; prices?: string } | null
-  birthdays?: { intro?: string; offers?: CmsOffer[] } | null
-  booths?: { intro?: string; offers?: CmsOffer[] } | null
-  faq?: { question?: string; answer?: string; pending?: string; link?: { label?: string; to?: string } }[] | null
-  settings?: { email?: string; instagram?: string; gettingThere?: { label?: string; text?: string }[] } | null
+  weekly?: { posters?: SanityImage[]; doors?: string; closes?: string } | null
+  about?: {
+    tagline?: string
+    about?: string
+    description?: string
+    newsletter?: { heading?: string; body?: string }
+    shareImage?: SanityImage
+  } | null
+  settings?: {
+    email?: string
+    instagram?: string
+    gettingThere?: { label?: string; text?: string }[]
+    venue?: { name?: string; street?: string; suburb?: string; state?: string; postcode?: string; mapUrl?: string }
+    entry?: string
+  } | null
+  home?: { plans?: CmsPlans } | null
+  events?: CmsPage | null
+  tickets?: (CmsPage & { partner?: string; prices?: string }) | null
+  birthdays?: (CmsPage & { offers?: CmsOffer[] }) | null
+  booths?: (CmsPage & { offers?: CmsOffer[] }) | null
+  faqs?: (CmsPage & { items?: { question?: string; answer?: string; pending?: string; link?: { label?: string; to?: string } }[] }) | null
+  contact?: CmsPage | null
+  careers?: (CmsPage & { roles?: { title?: string; text?: string }[] }) | null
+  forms?: (CmsForm & { _id: string })[]
+}
+
+/** The shared words and details that are filled in, to lay over the site's own (site.ts). */
+export interface CmsSiteCopy {
+  words: Partial<Pick<SiteCopy, 'tagline' | 'about' | 'description' | 'entry' | 'shareImage'>>
+  newsletter: Partial<SiteCopy['newsletter']>
+  address: Partial<Pick<Venue, 'host' | 'street' | 'suburb' | 'state' | 'postcode' | 'mapUrl'>>
+  /** Doors and close, 24-hour. */
+  hours: { opens?: string; closes?: string }
 }
 
 export interface CmsSite {
@@ -86,12 +131,11 @@ export interface CmsSite {
   faq: FaqItem[] | null
   gettingThere: { label: string; text: string }[] | null
   contact: { email: string | null; instagram: string | null }
-  /** The booking pages, once they're in the back office. An empty intro keeps the file's. */
-  pages: {
-    tickets: (Omit<Pages['tickets'], 'intro'> & { intro?: string }) | null
-    birthdays: (Omit<Pages['birthdays'], 'intro'> & { intro?: string }) | null
-    booths: (Omit<Pages['booths'], 'intro'> & { intro?: string }) | null
-  }
+  site: CmsSiteCopy
+  /** Each page's words that are filled in. */
+  pages: { home: { plans: CmsPlans } } & { [Name in Exclude<keyof Pages, 'home'>]: Partial<Pages[Name]> }
+  /** Each enquiry form's words. */
+  forms: Partial<Record<EnquiryKind, CmsForm>>
 }
 
 const STATUSES: NightStatus[] = ['announced', 'on-sale', 'sold-out']
@@ -104,6 +148,23 @@ function melbourneDay(iso: string) {
 /** Text from the back office, trimmed, or nothing when it's blank. */
 function text(value: string | null | undefined) {
   return value?.trim() || undefined
+}
+
+/** Only what's filled in: blank text and empty lists keep the site's own. */
+function filled<T extends Record<string, unknown>>(fields: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(fields).filter(([, value]) => value !== undefined && !(Array.isArray(value) && !value.length)),
+  ) as Partial<T>
+}
+
+/** A 24-hour time, "22:00", or nothing. */
+function time(value: string | undefined) {
+  const trimmed = text(value)
+  return trimmed && /^([01]\d|2[0-3]):[0-5]\d$/.test(trimmed) ? trimmed : undefined
+}
+
+function page(doc: CmsPage | null | undefined) {
+  return filled({ label: text(doc?.label), intro: text(doc?.intro) })
 }
 
 function toOffers(offers: CmsOffer[] | undefined): Offer[] {
@@ -167,7 +228,7 @@ export async function cmsSite(): Promise<CmsSite | null> {
     })
     if (shots.length) photos.set(night.slug, shots)
   })
-  const faq = (content.faq ?? []).flatMap((item) =>
+  const faq = (content.faqs?.items ?? []).flatMap((item) =>
     item.question?.trim()
       ? [
           {
@@ -182,14 +243,16 @@ export async function cmsSite(): Promise<CmsSite | null> {
   const gettingThere = (content.settings?.gettingThere ?? []).flatMap((way) =>
     way.label && way.text ? [{ label: way.label, text: way.text }] : [],
   )
-  const weeklyArtwork = (content.weekly ?? []).flatMap((image) => {
+  const weeklyArtwork = (content.weekly?.posters ?? []).flatMap((image) => {
     const src = cmsImageUrl(image, 1080, 1350)
     return src ? [{ src, small: cmsImageUrl(image, 540, 675), alt: image.alt ?? `${brand.name}: the weekly poster` }] : []
   })
-  const { tickets, birthdays, booths } = content
-  const intro = (page: { intro?: string } | null | undefined) => {
-    const words = text(page?.intro)
-    return words ? { intro: words } : {}
+  const { about, settings, tickets, birthdays, booths, careers } = content
+  const plans = content.home?.plans ?? {}
+  const forms: Partial<Record<EnquiryKind, CmsForm>> = {}
+  for (const form of content.forms ?? []) {
+    const kind = form._id.replace(/^form-/, '')
+    if (isEnquiryKind(kind)) forms[kind] = form
   }
   return {
     nights,
@@ -216,10 +279,49 @@ export async function cmsSite(): Promise<CmsSite | null> {
     faq: faq.length ? faq : null,
     gettingThere: gettingThere.length ? gettingThere : null,
     contact: { email: content.settings?.email?.trim() || null, instagram: content.settings?.instagram?.trim() || null },
-    pages: {
-      tickets: tickets ? { ...intro(tickets), partner: text(tickets.partner) ?? null, prices: text(tickets.prices) ?? null } : null,
-      birthdays: birthdays ? { ...intro(birthdays), packages: toOffers(birthdays.offers) } : null,
-      booths: booths ? { ...intro(booths), options: toOffers(booths.offers) } : null,
+    site: {
+      words: filled({
+        tagline: text(about?.tagline),
+        about: text(about?.about),
+        description: text(about?.description),
+        entry: text(settings?.entry),
+        shareImage: about?.shareImage?.asset
+          ? { src: cmsImageUrl(about.shareImage, 1200, 630) ?? '', alt: about.shareImage.alt ?? brand.name, width: 1200, height: 630 }
+          : undefined,
+      }),
+      newsletter: filled({ heading: text(about?.newsletter?.heading), body: text(about?.newsletter?.body) }),
+      address: filled({
+        host: text(settings?.venue?.name),
+        street: text(settings?.venue?.street),
+        suburb: text(settings?.venue?.suburb),
+        state: text(settings?.venue?.state),
+        postcode: text(settings?.venue?.postcode),
+        mapUrl: text(settings?.venue?.mapUrl),
+      }),
+      hours: filled({ opens: time(content.weekly?.doors), closes: time(content.weekly?.closes) }),
     },
+    pages: {
+      home: {
+        plans: Object.fromEntries(
+          Object.entries(plans).map(([kind, plan]) => [kind, filled({ text: text(plan?.text), action: text(plan?.action) })]),
+        ),
+      },
+      events: page(content.events),
+      tickets: filled({ intro: text(tickets?.intro), partner: text(tickets?.partner), prices: text(tickets?.prices) }),
+      birthdays: { ...page(birthdays), ...filled({ packages: toOffers(birthdays?.offers) }) },
+      booths: { ...page(booths), ...filled({ options: toOffers(booths?.offers) }) },
+      faqs: page(content.faqs),
+      contact: page(content.contact),
+      careers: {
+        ...page(careers),
+        ...filled({
+          roles: (careers?.roles ?? []).flatMap((role): Role[] => {
+            const [title, words] = [text(role.title), text(role.text)]
+            return title && words ? [{ title, text: words }] : []
+          }),
+        }),
+      },
+    },
+    forms,
   }
 }

@@ -1,5 +1,6 @@
 import type { Route } from './+types/robots'
 import { brand } from '../brand/brand'
+import { getSite } from '../content/content.server'
 import { siteConfig } from '../lib/site.server'
 
 /*
@@ -25,11 +26,12 @@ const AI_CRAWLERS = [
   'meta-externalagent',
 ]
 
-export function loader({ request }: Route.LoaderArgs) {
+export async function loader({ request }: Route.LoaderArgs) {
   const site = siteConfig(request)
+  const { hours, venue } = await getSite()
   const body = site.indexable
     ? [
-        `# ${brand.name}: ${brand.hours.long}, at the ${brand.venue.host}, ${brand.venue.suburb}.`,
+        `# ${brand.name}: ${hours.long}, at the ${venue.host}, ${venue.suburb}.`,
         '',
         'User-agent: *',
         'Disallow: /api/',

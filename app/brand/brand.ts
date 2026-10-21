@@ -1,7 +1,7 @@
 /**
  * Club Casa's brand, from the official Club Casa Brand Guideline and branding pack (Alicyte Design, October 2026):
- * the palette, the logos and mascot in public/brand/official, the type and the copy. Everything brand-specific lives
- * here and in app/content/.
+ * the palette, the logos and mascot in public/brand/official, and the type. The words the pages share (the tagline,
+ * the About text, the hours and the venue) are in app/content/site.ts, where the back office can take them over.
  */
 
 /**
@@ -98,29 +98,10 @@ export const pending = null
 
 export const brand = {
   name: 'Club Casa',
-  /** From the guideline's closing page. */
-  tagline: 'A house away from home.',
-  description:
-    'Club Casa: a warm, analogue-inspired club night of forward-thinking house music. Every Saturday, 10PM until 5AM, at the Prince Bandroom in St Kilda.',
-  /** The brand statement from the guideline. */
-  intro:
-    'Club Casa is a warm, analogue-inspired club experience built around nostalgia, intimacy and forward-thinking house music. The space blends earthy tones, warm lighting, retro objects and handwritten details to create a moody, understated atmosphere that feels both familiar and unexpected. A place to escape the everyday, gather with friends and lose yourself in the night.',
-  /** The house copy set small on the posts. */
-  houseCopy:
-    'Club Casa opens its doors for another night of music, movement and everything in between. A place to lose track of time, meet someone new and stay a little longer than planned.',
   mascot: {
     /** Previously Otto. */
     name: 'Casa',
     description: 'The charming, mysterious character of Club Casa, inspired by vintage European design and analogue culture.',
-  },
-  hours: {
-    days: 'Every Saturday',
-    time: '10PM – 5AM',
-    /** Doors and close, for listings and structured data. */
-    opens: '22:00',
-    closes: '05:00',
-    span: '10PM until 5AM Sunday',
-    long: 'Every Saturday, 10PM until 5AM Sunday',
   },
   defaultMood: 'charcoal' as MoodId,
   locale: 'en-AU',
@@ -135,32 +116,9 @@ export const brand = {
     { label: 'Contact', to: '/contact' },
   ] satisfies NavItem[],
   moreNav: [{ label: 'Join the team', to: '/careers' }] satisfies NavItem[],
-  venue: {
-    name: 'Club Casa',
-    /** Where the night happens. */
-    host: 'Prince Bandroom',
-    note: 'At the Prince Bandroom',
-    street: '29 Fitzroy Street',
-    locality: 'St Kilda VIC 3182',
-    suburb: 'St Kilda',
-    state: 'VIC',
-    postcode: '3182',
-    country: 'AU',
-    mapUrl:
-      'https://www.google.com/maps/search/?api=1&query=Prince+Bandroom+29+Fitzroy+Street+St+Kilda+VIC+3182',
-  },
   /** Not confirmed yet: each shows as a marked placeholder until it's set. */
   contact: {
     email: pending as string | null,
     instagram: pending as string | null,
   },
-  entry: '18+ only. Bring valid photo ID.',
-  newsletter: {
-    heading: 'Get on the list',
-    body: 'First word on new events, line-ups and tickets.',
-  },
-}
-
-export function pageTitle(title?: string) {
-  return title ? `${title} | ${brand.name}` : `${brand.name} | ${brand.tagline.replace('.', '')}`
 }

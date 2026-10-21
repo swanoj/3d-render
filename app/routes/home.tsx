@@ -11,50 +11,34 @@ import { OnNow } from '../components/NightOf'
 import { PlanArt, type PlanKind } from '../components/PlanArt'
 import { Note, Scribble } from '../components/Scribble'
 import { StampedTitle } from '../components/ScrollFx'
-import { getHouse, getNights } from '../content/content.server'
+import { getHouse, getNights, getPage } from '../content/content.server'
+import type { Plan } from '../content/pages'
 import { useNow } from '../lib/hooks'
 import { useHeroParallax, useScrollReveal } from '../lib/scrollFx'
 import { nightPhase, requestNow } from '../lib/nightOf'
-import { seo } from '../lib/seo'
+import { seo, siteCopy } from '../lib/seo'
+import { useCopy } from '../lib/useSite'
 
-export function meta() {
-  return seo()
+export function meta({ matches }: Route.MetaArgs) {
+  return seo(siteCopy(matches))
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
   const now = requestNow(request)
-  const [{ upcoming }, house] = await Promise.all([getNights(now), getHouse()])
+  const [{ upcoming }, house, page] = await Promise.all([getNights(now), getHouse(), getPage('home')])
   // A previewed "now" (?now=…) carries on into the clocks in the browser.
-  return { upcoming, now, offset: now - Date.now(), photos: house.photos, mood: brand.defaultMood }
+  return { upcoming, now, offset: now - Date.now(), photos: house.photos, plans: page.plans, mood: brand.defaultMood }
 }
 
-/** Ways to plan a night, each with its own page and its own little show on hover. */
-const PLANS: { kind: PlanKind; to: string; title: string; text: string; action: string }[] = [
-  {
-    kind: 'tickets',
-    to: '/tickets',
-    title: 'Tickets',
-    text: 'Entry for every Saturday, online.',
-    action: 'Get tickets',
-  },
-  {
-    kind: 'birthdays',
-    to: '/birthdays',
-    title: 'Birthdays',
-    text: 'Celebrating? Tell us about the night you have in mind.',
-    action: 'Plan a birthday',
-  },
-  {
-    kind: 'booths',
-    to: '/booths',
-    title: 'Booths',
-    text: 'A booth for you and your friends, for the whole night.',
-    action: 'Book a booth',
-  },
+/** Ways to plan a night, each with its own page and its own little show on hover. Their words are the home page's. */
+const PLANS: { kind: PlanKind; to: string; title: string }[] = [
+  { kind: 'tickets', to: '/tickets', title: 'Tickets' },
+  { kind: 'birthdays', to: '/birthdays', title: 'Birthdays' },
+  { kind: 'booths', to: '/booths', title: 'Booths' },
 ]
 
 /** A way to plan the night: its show plays while the card is hovered or focused (or as it scrolls in, on touch). */
-function PlanCard({ plan }: { plan: (typeof PLANS)[number] }) {
+function PlanCard({ plan, words }: { plan: (typeof PLANS)[number]; words: Plan }) {
   const [active, setActive] = useState(false)
   return (
     <Link
@@ -68,15 +52,16 @@ function PlanCard({ plan }: { plan: (typeof PLANS)[number] }) {
     >
       <PlanArt kind={plan.kind} active={active} autoplay className="plan-card-art" />
       <span className="hand plan-title">{plan.title}</span>
-      <span className="mono plan-text">{plan.text}</span>
-      <span className="plan-action">{plan.action} →</span>
+      <span className="mono plan-text">{words.text}</span>
+      <span className="plan-action">{words.action} →</span>
     </Link>
   )
 }
 
 export default function Home({ loaderData }: Route.ComponentProps) {
-  const { upcoming, offset, photos } = loaderData
-  const { venue, hours } = brand
+  const { upcoming, offset, photos, plans } = loaderData
+  const copy = useCopy()
+  const { venue, hours } = copy
   // Ticks, so the page turns to "on now" at doors, and follows the sets, without a reload.
   const now = useNow(loaderData.now, { every: 15_000, offset })
   const [next, ...later] = upcoming
@@ -92,7 +77,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         <h1 id="hero-title" className="hero-logo">
           <Mark name="logo-tilted" label={brand.name} className="boil" />
         </h1>
-        <p className="hand hero-tagline">{brand.tagline}</p>
+        <p className="hand hero-tagline">{copy.tagline}</p>
         <p className="label hero-hours">
           {hours.days} · {hours.time} · {venue.host}, {venue.suburb}
         </p>
@@ -148,8 +133,8 @@ export default function Home({ loaderData }: Route.ComponentProps) {
           <h2 id="about-title" className="label">
             About {brand.name}
           </h2>
-          <p className="hand about-lede">{brand.tagline}</p>
-          <p className="mono">{brand.intro}</p>
+          <p className="hand about-lede">{copy.tagline}</p>
+          <p className="mono">{copy.about}</p>
           <p className="hand about-hours">
             <span className="circled">
               {hours.days}
@@ -169,7 +154,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         <ul className="plan-grid">
           {PLANS.map((plan) => (
             <li key={plan.to}>
-              <PlanCard plan={plan} />
+              <PlanCard plan={plan} words={plans[plan.kind]} />
             </li>
           ))}
         </ul>
@@ -205,7 +190,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
             {venue.locality}
           </address>
           <p className="mono">
-            {hours.long}. {brand.entry}
+            {hours.long}. {copy.entry}
           </p>
           <div className="button-row button-row--start">
             <a className="button button--solid" href={venue.mapUrl} target="_blank" rel="noreferrer">

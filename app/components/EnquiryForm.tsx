@@ -1,12 +1,14 @@
 import { useEffect } from 'react'
 import { useFetcher } from 'react-router'
-import { ANOTHER_DATE, enquiries, type EnquiryField, type EnquiryKind } from '../content/enquiries'
+import { ANOTHER_DATE, type Enquiry, type EnquiryField, type EnquiryKind } from '../content/enquiries'
 import { track } from '../lib/analytics'
 import type { EnquiryResult } from '../routes/api.enquiry'
 import { Mark } from './Mark'
 
 interface EnquiryFormProps {
   kind: EnquiryKind
+  /** The form, worded as the back office has it (getEnquiry in content.server.ts). */
+  enquiry: Enquiry
   /** Upcoming Saturdays for the date field, as [value, label]: ["2026-10-24", "Saturday 24th Oct"]. */
   saturdays?: [string, string][]
 }
@@ -75,9 +77,8 @@ function Field({ field, error, saturdays }: { field: EnquiryField; error?: strin
 }
 
 /** A birthday, booth, careers or contact enquiry. Posts to /api/enquiry without leaving the page. */
-export function EnquiryForm({ kind, saturdays = [] }: EnquiryFormProps) {
+export function EnquiryForm({ kind, enquiry, saturdays = [] }: EnquiryFormProps) {
   const fetcher = useFetcher<EnquiryResult>()
-  const enquiry = enquiries[kind]
   const busy = fetcher.state !== 'idle'
   const result = fetcher.data
   const sent = result?.ok

@@ -4,13 +4,13 @@ import { brand } from '../brand/brand'
 import { Mark } from '../components/Mark'
 import { PageHero } from '../components/PageHero'
 import { Pending } from '../components/Pending'
-import { getGuide } from '../content/content.server'
+import { getGuide, getPage } from '../content/content.server'
 import type { FaqItem } from '../content/faq'
-import { seo } from '../lib/seo'
+import { seo, siteCopy } from '../lib/seo'
 
-export function meta({ loaderData }: Route.MetaArgs) {
+export function meta({ loaderData, matches }: Route.MetaArgs) {
   return [
-    ...seo({
+    ...seo(siteCopy(matches), {
       title: 'FAQs',
       description: `Answers about ${brand.name}: opening hours, tickets, entry, birthdays, booths and joining the team.`,
     }),
@@ -19,8 +19,8 @@ export function meta({ loaderData }: Route.MetaArgs) {
 }
 
 export async function loader() {
-  const { faq } = await getGuide()
-  return { faq }
+  const [{ faq }, page] = await Promise.all([getGuide(), getPage('faqs')])
+  return { faq, page }
 }
 
 /** schema.org FAQ data for the answered questions, so search engines can answer them directly. */
@@ -42,9 +42,9 @@ export default function Faqs({ loaderData }: Route.ComponentProps) {
   return (
     <>
       <PageHero
-        label="Good to know"
+        label={loaderData.page.label}
         title="FAQs"
-        intro="The questions we get asked most. Can’t find yours? Get in touch."
+        intro={loaderData.page.intro}
         mark="emblem"
       />
 

@@ -1,6 +1,7 @@
 import { data } from 'react-router'
 import type { Route } from './+types/api.enquiry'
-import { enquiries, isEnquiryKind, type Enquiry, type EnquiryKind } from '../content/enquiries'
+import { getEnquiry } from '../content/content.server'
+import { isEnquiryKind, type Enquiry, type EnquiryKind } from '../content/enquiries'
 import { emailEnabled, escapeHtml, sendEmail, type Email } from '../lib/email.server'
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -15,7 +16,7 @@ export interface EnquiryResult {
 }
 
 /** The inbox line, so the team can see what it is before opening it. */
-function subjectFor(kind: EnquiryKind, values: Record<string, string>) {
+function subjectFor(kind: EnquiryKind, title: string, values: Record<string, string>) {
   const name = values.name || 'the website'
   const extra = {
     birthday: [values.date, values.guests && `${values.guests} guests`],
@@ -23,7 +24,7 @@ function subjectFor(kind: EnquiryKind, values: Record<string, string>) {
     careers: [values.role],
     contact: [],
   }[kind].filter(Boolean)
-  const what = kind === 'careers' ? 'Job application' : kind === 'contact' ? values.topic || 'Message' : enquiries[kind].title
+  const what = kind === 'careers' ? 'Job application' : kind === 'contact' ? values.topic || 'Message' : title
   return [`${what} from ${name}`, ...extra].join(' · ')
 }
 
@@ -34,7 +35,7 @@ function enquiryEmail(kind: EnquiryKind, enquiry: Enquiry, values: Record<string
   return {
     from: process.env.ENQUIRY_EMAIL_FROM?.trim() || 'Club Casa website <onboarding@resend.dev>',
     to,
-    subject: subjectFor(kind, values),
+    subject: subjectFor(kind, enquiry.title, values),
     replyTo: EMAIL.test(values.email ?? '') ? values.email : undefined,
     text: [`${enquiry.title}, from the website`, '', ...rows.map(([label, value]) => `${label}: ${value}`), '', `Reply to this email to answer ${name}.`].join('\n'),
     html: [
@@ -77,14 +78,14 @@ async function deliver(kind: EnquiryKind, enquiry: Enquiry, values: Record<strin
 }
 
 /**
- * Birthday, booth, careers and contact enquiries. Checks the fields against content/enquiries.ts, then sends the
- * enquiry to the team (see deliver).
+ * Birthday, booth, careers and contact enquiries. Checks the fields against the form as the page showed it
+ * (content/enquiries.ts, worded by the back office), then sends the enquiry to the team (see deliver).
  */
 export async function action({ request }: Route.ActionArgs) {
   const form = await request.formData()
   const kind = form.get('kind')
   if (!isEnquiryKind(kind)) return data<EnquiryResult>({ ok: false, message: 'Unknown form.' }, { status: 400 })
-  const enquiry = enquiries[kind]
+  const enquiry = await getEnquiry(kind)
 
   // A field people can't see: anything in it came from a bot. Look like it worked and drop it.
   if (String(form.get('website') ?? '').trim()) return { ok: true, message: enquiry.sent } satisfies EnquiryResult

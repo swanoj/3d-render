@@ -18,7 +18,8 @@ import { clockTime, posterDate, price } from '../lib/format'
 import { useNow } from '../lib/hooks'
 import { nightPhase, requestNow } from '../lib/nightOf'
 import { eventPath } from '../lib/paths'
-import { seo } from '../lib/seo'
+import { seo, siteCopy } from '../lib/seo'
+import { useCopy } from '../lib/useSite'
 import { siteOrigin } from '../lib/site.server'
 import { breadcrumbJsonLd, eventJsonLd } from '../lib/structuredData'
 
@@ -33,15 +34,17 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   return { night, origin: siteOrigin(request), now, offset: now - Date.now(), photos, shareImage, mood: night.mood }
 }
 
-export function meta({ loaderData }: Route.MetaArgs) {
-  if (!loaderData) return seo({ title: 'Not found' })
+export function meta({ loaderData, matches }: Route.MetaArgs) {
+  const copy = siteCopy(matches)
+  if (!loaderData) return seo(copy, { title: 'Not found' })
   const { night, origin } = loaderData
+  const { venue } = copy
   const date = posterDate(night.startsAt)
   const lineup = night.lineupConfirmed && night.lineup.length ? ` With ${night.lineup.join(', ')}.` : ''
-  const description = `${night.title} at the ${brand.venue.host}, ${brand.venue.suburb}. ${clockTime(night.startsAt)} until ${night.closes}.${lineup}`
+  const description = `${night.title} at the ${venue.host}, ${venue.suburb}. ${clockTime(night.startsAt)} until ${night.closes}.${lineup}`
   return [
-    ...seo({ title: `${date} at the ${brand.venue.host}`, description }),
-    { 'script:ld+json': eventJsonLd(night, origin, description) },
+    ...seo(copy, { title: `${date} at the ${venue.host}`, description }),
+    { 'script:ld+json': eventJsonLd(night, origin, description, copy) },
     {
       'script:ld+json': breadcrumbJsonLd(origin, [
         { name: 'Events', path: '/events' },
@@ -57,7 +60,7 @@ export function ErrorBoundary() {
 
 export default function EventPage({ loaderData }: Route.ComponentProps) {
   const { night, offset, photos } = loaderData
-  const { venue } = brand
+  const { venue, entry } = useCopy()
   // Ticks, so the page turns to "on now" at doors, and follows the sets, without a reload.
   const now = useNow(loaderData.now, { every: 15_000, offset })
   const phase = nightPhase(night.startsAt, now)
@@ -163,7 +166,7 @@ export default function EventPage({ loaderData }: Route.ComponentProps) {
           <div>
             <dt>Entry</dt>
             <dd>
-              {brand.entry}{' '}
+              {entry}{' '}
               {night.priceFrom !== undefined ? `Tickets from ${price(night.priceFrom)}.` : <Pending>Entry price</Pending>}
             </dd>
           </div>

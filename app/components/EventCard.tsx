@@ -1,5 +1,5 @@
 import { Link } from 'react-router'
-import { brand } from '../brand/brand'
+import { useCopy } from '../lib/useSite'
 import type { Artwork, NightView } from '../content/types'
 import { clockTime, dateParts, posterDate } from '../lib/format'
 import { eventPath } from '../lib/paths'
@@ -43,6 +43,7 @@ export function EventArt({ artwork, sizes, eager }: { artwork?: Artwork; sizes: 
 
 /** One event in a grid: the poster, the date and the two things you'd want to do next. */
 export function EventCard({ night }: { night: NightView }) {
+  const { venue } = useCopy()
   const date = dateParts(night.startsAt)
   const href = eventPath(night)
   return (
@@ -61,7 +62,7 @@ export function EventCard({ night }: { night: NightView }) {
           </Link>
         </h3>
         <p className="mono event-card-meta">
-          {clockTime(night.startsAt)} – {night.closes} · {brand.venue.host}
+          {clockTime(night.startsAt)} – {night.closes} · {venue.host}
         </p>
         <p className="mono event-card-lineup">{lineupPreview(night)}</p>
         <div className="event-card-actions">
@@ -77,6 +78,7 @@ export function EventCard({ night }: { night: NightView }) {
 
 /** The next event, given the most room on the home page. */
 export function EventFeature({ night, now, offset }: { night: NightView; now: number; offset: number }) {
+  const { venue } = useCopy()
   const href = eventPath(night)
   const doors = Date.parse(night.startsAt)
   return (
@@ -98,7 +100,7 @@ export function EventFeature({ night, now, offset }: { night: NightView; now: nu
           </Note>
         </h3>
         <p className="label event-feature-meta">
-          {clockTime(night.startsAt)} – {night.closes} · {brand.venue.host}, {brand.venue.suburb}
+          {clockTime(night.startsAt)} – {night.closes} · {venue.host}, {venue.suburb}
         </p>
         {night.acts.length ? (
           <Lineup acts={night.acts} />

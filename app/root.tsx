@@ -11,7 +11,7 @@ import {
 } from 'react-router'
 import type { Route } from './+types/root'
 import './app.css'
-import { brand, moods, pageTitle } from './brand/brand'
+import { brand, moods } from './brand/brand'
 import { Casa } from './components/Casa'
 import { markUrl } from './lib/marks'
 import { RadioDock } from './components/RadioDock'
@@ -21,12 +21,17 @@ import { SiteAnalytics, SiteHead } from './components/SiteMeta'
 import { Backdrop } from './components/Stages'
 import { moodCss, useRouteMood } from './lib/mood'
 import { MoodProvider } from './lib/MoodProvider'
-import { getContact } from './content/content.server'
+import { getContact, getSite } from './content/content.server'
+import { pageTitle } from './lib/seo'
 import { siteConfig } from './lib/site.server'
 
-/** The site's address and analytics settings (see lib/site.server.ts), and the contact details every page shows. */
+/**
+ * The site's address and analytics settings (see lib/site.server.ts), and what every page shows: the contact details
+ * and the shared words (the tagline, the venue, the hours), from the back office.
+ */
 export async function loader({ request }: Route.LoaderArgs) {
-  return { ...siteConfig(request), contact: await getContact() }
+  const [contact, copy] = await Promise.all([getContact(), getSite()])
+  return { ...siteConfig(request), contact, copy }
 }
 
 // The settings don't change from page to page, so they're fetched once.

@@ -3,34 +3,38 @@ import { brand } from '../brand/brand'
 import { EventCard } from '../components/EventCard'
 import { NightRow } from '../components/NightRow'
 import { PageHero } from '../components/PageHero'
-import { getNights } from '../content/content.server'
+import { getNights, getPage } from '../content/content.server'
 import { requestNow } from '../lib/nightOf'
-import { seo } from '../lib/seo'
+import { seo, siteCopy } from '../lib/seo'
+import { useCopy } from '../lib/useSite'
 import { siteOrigin } from '../lib/site.server'
 import { eventsJsonLd } from '../lib/structuredData'
 
-export function meta({ loaderData }: Route.MetaArgs) {
+export function meta({ loaderData, matches }: Route.MetaArgs) {
+  const copy = siteCopy(matches)
   return [
-    ...seo({
+    ...seo(copy, {
       title: 'Events',
-      description: `Upcoming events at ${brand.name}: ${brand.hours.long}, at the ${brand.venue.host}, ${brand.venue.suburb}.`,
+      description: `Upcoming events at ${brand.name}: ${copy.hours.long}, at the ${copy.venue.host}, ${copy.venue.suburb}.`,
     }),
-    ...(loaderData ? [{ 'script:ld+json': eventsJsonLd(loaderData.origin, loaderData.upcoming) }] : []),
+    ...(loaderData ? [{ 'script:ld+json': eventsJsonLd(loaderData.origin, copy, loaderData.upcoming) }] : []),
   ]
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
-  return { ...(await getNights(requestNow(request))), origin: siteOrigin(request) }
+  const [nights, page] = await Promise.all([getNights(requestNow(request)), getPage('events')])
+  return { ...nights, page, origin: siteOrigin(request) }
 }
 
 export default function Events({ loaderData }: Route.ComponentProps) {
-  const { upcoming, past } = loaderData
+  const { upcoming, past, page } = loaderData
+  const { hours } = useCopy()
   return (
     <>
       <PageHero
-        label={`${brand.hours.days} · ${brand.hours.time}`}
+        label={`${hours.days} · ${hours.time}`}
         title="Events"
-        intro={`Every Saturday night at the ${brand.venue.host}, ${brand.venue.suburb}. Line-ups go up here as they’re announced, with tickets for each night.`}
+        intro={page.intro}
         mark="logo-stacked-stroke"
       />
 

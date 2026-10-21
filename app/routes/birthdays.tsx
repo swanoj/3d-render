@@ -6,30 +6,36 @@ import { Offers } from '../components/Offers'
 import { PageHero } from '../components/PageHero'
 import { Pending } from '../components/Pending'
 import { Scribble } from '../components/Scribble'
-import { getPage, getSaturdays } from '../content/content.server'
+import { getEnquiry, getPage, getSaturdays } from '../content/content.server'
 import { requestNow } from '../lib/nightOf'
-import { seo } from '../lib/seo'
+import { seo, siteCopy } from '../lib/seo'
 
-export function meta() {
-  return seo({
+export function meta({ matches }: Route.MetaArgs) {
+  const copy = siteCopy(matches)
+  return seo(copy, {
     title: 'Birthdays',
-    description: `Celebrate your birthday at ${brand.name}. Send a birthday enquiry for any Saturday at the ${brand.venue.host}.`,
+    description: `Celebrate your birthday at ${brand.name}. Send a birthday enquiry for any Saturday at the ${copy.venue.host}.`,
   })
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const [saturdays, page] = await Promise.all([getSaturdays(requestNow(request)), getPage('birthdays')])
-  return { saturdays, page }
+  const [saturdays, page, form] = await Promise.all([
+    getSaturdays(requestNow(request)),
+    getPage('birthdays'),
+    getEnquiry('birthday'),
+  ])
+  return { saturdays, page, form }
 }
 
 export default function Birthdays({ loaderData }: Route.ComponentProps) {
-  const { packages } = loaderData.page
+  const { page, form } = loaderData
+  const { packages } = page
   return (
     <>
       <PageHero
-        label="Celebrate at Club Casa"
+        label={page.label}
         title="Birthdays"
-        intro={loaderData.page.intro}
+        intro={page.intro}
         mark="mascot"
       />
 
@@ -68,9 +74,9 @@ export default function Birthdays({ loaderData }: Route.ComponentProps) {
         </aside>
         <div className="enquiry-card">
           <h2 id="birthday-form-title" className="label">
-            Birthday enquiry
+            {form.title}
           </h2>
-          <EnquiryForm kind="birthday" saturdays={loaderData.saturdays} />
+          <EnquiryForm kind="birthday" enquiry={form} saturdays={loaderData.saturdays} />
         </div>
       </section>
     </>

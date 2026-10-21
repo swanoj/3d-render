@@ -4,19 +4,20 @@ import { brand } from '../brand/brand'
 import { EnquiryForm } from '../components/EnquiryForm'
 import { PageHero } from '../components/PageHero'
 import { VenueDetails } from '../components/VenueDetails'
-import { getGuide } from '../content/content.server'
-import { seo } from '../lib/seo'
+import { getEnquiry, getGuide, getPage } from '../content/content.server'
+import { seo, siteCopy } from '../lib/seo'
+import { useCopy } from '../lib/useSite'
 
-export function meta() {
-  return seo({
+export function meta({ matches }: Route.MetaArgs) {
+  return seo(siteCopy(matches), {
     title: 'Contact',
     description: `Get in touch with ${brand.name}: the venue, opening hours, directions and enquiries.`,
   })
 }
 
 export async function loader() {
-  const { gettingThere } = await getGuide()
-  return { gettingThere }
+  const [{ gettingThere }, page, form] = await Promise.all([getGuide(), getPage('contact'), getEnquiry('contact')])
+  return { gettingThere, page, form }
 }
 
 const PATHS = [
@@ -27,12 +28,14 @@ const PATHS = [
 ]
 
 export default function Contact({ loaderData }: Route.ComponentProps) {
+  const { page, form } = loaderData
+  const { venue } = useCopy()
   return (
     <>
       <PageHero
-        label="Get in touch"
+        label={page.label}
         title="Contact"
-        intro="Send us a message below. For birthdays, booths or joining the team, the forms on those pages go straight to the right person."
+        intro={page.intro}
         mark="logo-mascot"
       />
 
@@ -52,9 +55,9 @@ export default function Contact({ loaderData }: Route.ComponentProps) {
         </div>
         <div className="enquiry-card">
           <h2 id="contact-form-title" className="label">
-            Send us a message
+            {form.title}
           </h2>
-          <EnquiryForm kind="contact" />
+          <EnquiryForm kind="contact" enquiry={form} />
         </div>
       </section>
 
@@ -71,7 +74,7 @@ export default function Contact({ loaderData }: Route.ComponentProps) {
           ))}
         </dl>
         <div className="button-row button-row--start contact-map">
-          <a className="button button--solid" href={brand.venue.mapUrl} target="_blank" rel="noreferrer">
+          <a className="button button--solid" href={venue.mapUrl} target="_blank" rel="noreferrer">
             Open in Google Maps ↗
           </a>
         </div>

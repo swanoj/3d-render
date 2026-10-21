@@ -1,24 +1,26 @@
 import { Link } from 'react-router'
 import { brand } from '../brand/brand'
+import { useCopy } from '../lib/useSite'
 import { Mark } from './Mark'
 import { NewsletterForm } from './NewsletterForm'
 import { VenueDetails } from './VenueDetails'
 
 export function SiteFooter() {
+  const copy = useCopy()
   return (
     <footer className="site-footer">
       <section id="list" className="footer-list" aria-labelledby="list-title">
         <h2 id="list-title" className="hand footer-list-title">
-          {brand.newsletter.heading}
+          {copy.newsletter.heading}
         </h2>
-        <p className="mono">{brand.newsletter.body}</p>
+        <p className="mono">{copy.newsletter.body}</p>
         <NewsletterForm id="footer-email" />
       </section>
 
       <div className="footer-main">
         <div className="footer-brand">
           <Mark name="logo-stacked" label={brand.name} className="footer-logo" />
-          <p className="hand footer-tagline">{brand.tagline}</p>
+          <p className="hand footer-tagline">{copy.tagline}</p>
         </div>
         <VenueDetails className="footer-venue" />
         <nav aria-label="Footer" className="footer-nav">
@@ -38,7 +40,7 @@ export function SiteFooter() {
           </ul>
         </nav>
         <p className="footer-base mono">
-          © {new Date().getFullYear()} {brand.name} · {brand.entry}
+          © {new Date().getFullYear()} {brand.name} · {copy.entry}
         </p>
       </div>
     </footer>
