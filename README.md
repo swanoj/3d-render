@@ -83,6 +83,7 @@ The Studio keeps itself on the latest Sanity release. Changing the content model
 | Casa's shows (tickets, birthdays, booths) and the scroll effects | `app/components/PlanArt.tsx`, `NavPeek.tsx`, `ScrollFx.tsx`, `app/lib/scrollFx.ts` |
 | The club easter egg: the door, the state, the WebGL scene and its shaders | `app/club/` (styles under "Club Casa after dark" in `app/app.css`) |
 | Casa's mates, as sprite sheets (rebuilt with `python3 scripts/club-mates.py <guideline page 12>`) | `public/club/` |
+| The home page's second version at /v2 (kept out of search results): the walk in, where the sound opens up as you scroll in from the street, and the crate of Saturdays beside Casa Radio's turntable | `app/routes/home-v2.tsx`, `app/lib/walkIn.ts`, `app/components/WalkIn.tsx`, `app/components/Crate.tsx` |
 | Styles | `app/app.css` |
 | Structured data, sitemap, robots.txt, llms.txt | `app/lib/structuredData.ts`, `app/routes/sitemap.ts`, `robots.ts`, `llms.ts` |
 | The share card (until the back office has one) and analytics tags | `public/share/`, `app/components/SiteMeta.tsx`, `app/lib/analytics.ts` |

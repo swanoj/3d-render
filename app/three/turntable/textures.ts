@@ -116,7 +116,7 @@ export function recordLabelTexture(mix: Mix, assets: MarkAssets | null) {
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.font = '700 44px Kalam, "Marker Felt", cursive'
-    ctx.fillText('CASA RADIO', 256, 104)
+    ctx.fillText(mix.label ?? 'CASA RADIO', 256, 104)
     if (assets) ctx.drawImage(tinted(assets.submark, palette.cream, 120), 196, 150)
     ctx.font = '500 26px "Roboto Mono", ui-monospace, monospace'
     ctx.fillText(mix.title.toUpperCase().slice(0, 22), 256, 340)

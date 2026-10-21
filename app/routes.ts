@@ -2,6 +2,8 @@ import { index, route, type RouteConfig } from '@react-router/dev/routes'
 
 export default [
   index('routes/home.tsx'),
+  // The home page's second version, to compare: the walk in and the crate (see the route).
+  route('v2', 'routes/home-v2.tsx'),
   route('events', 'routes/events.tsx'),
   route('events/:slug', 'routes/event.tsx'),
   route('events/:slug/calendar.ics', 'routes/event-calendar.ts'),

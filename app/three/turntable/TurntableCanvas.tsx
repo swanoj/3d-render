@@ -8,11 +8,20 @@ const CAMERA: [number, number, number] = [0.21, 0.71, 0.8]
 const TARGET: [number, number, number] = [0.036, -0.036, 0.018]
 
 /**
- * The radio dock's turntable (deck 1, Casa Radio's), drawn into a transparent canvas so it sits on the page with
- * its shadow. Like the room, it renders straight to the screen with no post-processing, and only draws frames
- * while something moves, and none while `paused` (the dock's stepped aside).
+ * Casa Radio's turntable (deck 1), drawn into a transparent canvas so it sits on the page with its shadow: in the
+ * radio dock, and `playable` beside the crate on the v2 home page, where the arm, the record and the buttons work.
+ * Like the room, it renders straight to the screen with no post-processing, and only draws frames while something
+ * moves, and none while `paused` (the dock's stepped aside).
  */
-export default function TurntableCanvas({ deck, paused = false }: { deck: DeckState; paused?: boolean }) {
+export default function TurntableCanvas({
+  deck,
+  paused = false,
+  playable = false,
+}: {
+  deck: DeckState
+  paused?: boolean
+  playable?: boolean
+}) {
   return (
     <Canvas
       className="turntable-canvas"
@@ -24,7 +33,7 @@ export default function TurntableCanvas({ deck, paused = false }: { deck: DeckSt
       onCreated={({ camera }) => camera.lookAt(...TARGET)}
     >
       <Studio />
-      <Turntable deck={deck} index={0} />
+      <Turntable deck={deck} index={0} playable={playable} />
     </Canvas>
   )
 }

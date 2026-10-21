@@ -142,6 +142,12 @@ export interface Mixer {
   crackleBus: AudioNode
   /** The room's hush, only while you're in the room. */
   hushLevel: GainNode
+  /** The club from out on the street, on the v2 home page's walk in (setStreet); wide open everywhere else. */
+  street: BiquadFilterNode
+  streetBody: BiquadFilterNode
+  streetLevel: GainNode
+  /** Where sounds made right beside you go, past the street's walls. */
+  near: AudioNode
   beds: Record<Bed, GainNode>
   noise: AudioBuffer
   crackle: AudioBuffer
@@ -225,7 +231,12 @@ export function createMixer(ctx: BaseAudioContext, output: AudioNode): Mixer {
   glue.ratio.value = 3
   glue.attack.value = 0.004
   glue.release.value = 0.25
-  master.connect(glue).connect(output)
+  // Out on the street the walls take everything but the kick and the bass, which they thicken; inside, nothing.
+  const street = filter(ctx, 'lowpass', 20000, 0.8)
+  const streetBody = filter(ctx, 'lowshelf', 140, 0.7)
+  streetBody.gain.value = 0
+  const streetLevel = ctx.createGain()
+  master.connect(street).connect(streetBody).connect(streetLevel).connect(glue).connect(output)
 
   // The club, through the wall: everything above the low mids is gone and the thump of the room is left.
   const music = ctx.createGain()
@@ -304,6 +315,10 @@ export function createMixer(ctx: BaseAudioContext, output: AudioNode): Mixer {
     decks,
     crackleBus,
     hushLevel,
+    street,
+    streetBody,
+    streetLevel,
+    near: glue,
     beds,
     noise: buffer(ctx, 1, 2, whiteNoise),
     crackle: surfaceNoise,
@@ -554,6 +569,24 @@ function clunk(mix: Mixer, time: number) {
   body.stop(time + 0.09)
 }
 
+/** A record sleeve flicked forward in a crate: card brushing card, and the soft knock of it landing. */
+function flick(mix: Mixer, time: number) {
+  const brush = noise(mix.ctx, mix.noise)
+  const brushLevel = mix.ctx.createGain()
+  pluck(brushLevel.gain, time, 0.11, 0.006, 0.09)
+  brush.connect(filter(mix.ctx, 'bandpass', 2400, 0.8)).connect(brushLevel).connect(mix.near)
+  brush.start(time, Math.random())
+  brush.stop(time + 0.14)
+  const knock = mix.ctx.createOscillator()
+  knock.frequency.setValueAtTime(150, time + 0.05)
+  knock.frequency.exponentialRampToValueAtTime(70, time + 0.12)
+  const knockLevel = mix.ctx.createGain()
+  pluck(knockLevel.gain, time + 0.05, 0.08, 0.003, 0.07)
+  knock.connect(knockLevel).connect(mix.near)
+  knock.start(time + 0.05)
+  knock.stop(time + 0.16)
+}
+
 /** Static between channels, timed with the picture: up in 0.11 s, gone by 0.43 s. */
 function staticBurst(mix: Mixer, time: number) {
   const source = noise(mix.ctx, mix.noise)
@@ -801,6 +834,8 @@ class CasaSound {
     { base: 0, at: 0 },
   ]
   private pulsed = { at: -Infinity, value: 0 }
+  /** How close to the floor the visitor is on the walk in (0–1), or null when they're not walking in. */
+  private street: number | null = null
 
   subscribe = (listener: () => void) => {
     this.listeners.add(listener)
@@ -946,6 +981,33 @@ class CasaSound {
       motor: true,
       arm: { at: 'record', progress: clamp(progress, 0, 1), lands: performance.now() + NEEDLE_LOWER * 1000, move: 'lower' },
     })
+  }
+
+  /**
+   * Puts `record` on deck `i`. On a playing deck the needle goes straight down on it, the way a DJ swaps records;
+   * otherwise it waits on the platter for the arm.
+   */
+  put = (i: DeckIndex, record: Mix) => {
+    if (this.decks[i].record?.id === record.id) return
+    if (!this.isPlaying(i)) return this.change(i, { record })
+    this.wake()
+    this.change(i, { record, arm: { at: 'record', progress: 0, lands: performance.now() + NEEDLE_DROP * 1000, move: 'cue' } })
+  }
+
+  /** A sleeve flicked forward in the crate. Only while the radio plays: in silence it would just make people jump. */
+  flick = () => {
+    if (this.mix && this.station.on && this.context?.state === 'running') flick(this.mix, this.mix.ctx.currentTime)
+  }
+
+  /**
+   * Where the visitor is on the v2 home page's walk in: 0 out on the street, where only the bass gets through the
+   * walls, to 1 on the floor. null everywhere else, where nothing's in the way.
+   */
+  setStreet = (closeness: number | null) => {
+    const next = closeness === null ? null : clamp(closeness, 0, 1)
+    if (next === this.street || (next !== null && this.street !== null && Math.abs(next - this.street) < 0.004)) return
+    this.street = next
+    this.applyStreet()
   }
 
   /** Takes the record off deck `i`, lifting the needle and stopping the platter first. Returns it. */
@@ -1299,6 +1361,7 @@ class CasaSound {
       this.mix = mix
       this.voices = [createDeck(mix), createDeck(mix)]
       this.wallOut = { ctx: context, dest: mix.music, noise: mix.noise, rate: 1 }
+      this.applyStreet()
       document.addEventListener('visibilitychange', () => this.refresh())
       // Plays through the iPhone's silent switch, like any other media the visitor starts themselves.
       const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession
@@ -1350,6 +1413,17 @@ class CasaSound {
         context.suspend().catch(() => {})
       }, 900)
     }
+  }
+
+  /** The walk in's walls: 260 Hz on the street, where only the kick and the bass get through, to 20 kHz inside. */
+  private applyStreet() {
+    const mix = this.mix
+    if (!mix) return
+    const now = mix.ctx.currentTime
+    const closeness = this.street ?? 1
+    mix.street.frequency.setTargetAtTime(260 * (20000 / 260) ** closeness, now, 0.12)
+    mix.streetBody.gain.setTargetAtTime((1 - closeness) * 6, now, 0.12)
+    mix.streetLevel.gain.setTargetAtTime(0.6 + 0.4 * closeness, now, 0.12)
   }
 
   /** The mixer's faders, crossfader and EQ, and each deck's speed for a mix from a file. */

@@ -10,6 +10,7 @@ import {
   type ShaderMaterial,
 } from 'three'
 import { moods, type MoodId } from '../brand/brand'
+import { walk } from '../lib/walk'
 import { wallFragment, wallVertex } from './wordmark-wall.glsl'
 
 /** The logo file and its proportions; a tile adds breathing room around it. */
@@ -81,6 +82,8 @@ export function WordmarkWall({ mood, animate }: WordmarkWallProps) {
     }
   })
   const [tile, setTile] = useState<{ texture: CanvasTexture; aspect: number } | null>(null)
+  // The lamps' own strength, before the beat swells it on the walk in.
+  const glowStrength = useRef(uniforms.uGlowStrength.value)
 
   useEffect(() => {
     let cancelled = false
@@ -149,7 +152,9 @@ export function WordmarkWall({ mood, animate }: WordmarkWallProps) {
     let settling = dampVector(u.uBase.value, target.base, 2.6, delta)
     settling = dampVector(u.uPattern.value, target.pattern, 2.6, delta) || settling
     settling = dampVector(u.uGlow.value, target.glow, 2.6, delta) || settling
-    u.uGlowStrength.value = MathUtils.damp(u.uGlowStrength.value, target.glowStrength, 2.6, delta)
+    glowStrength.current = MathUtils.damp(glowStrength.current, target.glowStrength, 2.6, delta)
+    // On the v2 home page's walk in, the lamps swell with the beat (walk.beat is 0 otherwise).
+    u.uGlowStrength.value = glowStrength.current * (1 + (walk.active ? walk.beat * 1.6 : 0))
     const opacity = tile ? target.opacity : 0
     u.uOpacity.value = MathUtils.damp(u.uOpacity.value, opacity, 2.6, delta)
     settling ||= Math.abs(u.uOpacity.value - opacity) > 1e-3

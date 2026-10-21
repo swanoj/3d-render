@@ -116,6 +116,8 @@ export interface Mix {
   groove?: GrooveId
   /** The sleeve's colourway in the DJ desk's record crate. */
   sleeve?: MoodId
+  /** The name printed across the top of the record's label: "CASA RADIO" unless it says otherwise. */
+  label?: string
 }
 
 /** A photo from a night, shown faded and grainy. Keep faces out of frame: the night stays mysterious. */
