@@ -26,7 +26,7 @@ import { congaVertex, crowdVertex, particleFragment, particleVertex, roomFragmen
 /*
  * The club, drawn on two canvases: the room behind the page (the lights going down over the wordmark wall, beams,
  * Casa-shaped gobos and the mirror ball's specks), and the dance floor in front of it (the crowd, the conga line
- * following the pointer, specks sliding over everything, confetti). It follows the shared
+ * parading along its top, specks sliding over everything, confetti). It follows the shared
  * club state every frame: the door's swing lets the crowd out, and leaving plays them home.
  */
 
@@ -193,17 +193,14 @@ function renderer(canvas: HTMLCanvasElement) {
 }
 
 /**
- * The conga line: Casa at the front, mates joining one by one, following the pointer's path. When the pointer
- * rests they dance in a ring round it for a few seconds, then wander back to the floor (out of the way of whatever
- * you're reading) until it moves again. With no pointer (a touch screen) they parade along the top of the crowd.
+ * The conga line: Casa at the front, mates joining one by one, parading along the top of the crowd. It keeps to the
+ * floor whatever the pointer does, out of the way of whatever you're reading.
  */
 class Conga {
   private trail: number[] = []
   private dancers: { x: number; y: number; facing: number; cell: number; tint: number; size: number; alpha: number }[] = []
-  private still = 0
   private joinIn = 0.6
   private head = { x: 0, y: 0 }
-  private seen = false
   private readonly max: number
   private readonly random: () => number
 
@@ -212,19 +209,22 @@ class Conga {
     this.random = random
   }
 
-  /** The pointer moved. */
-  point(x: number, y: number) {
+  /** Where Casa, at the front, has got to. */
+  get leader() {
+    return this.head
+  }
+
+  /** Moves the front of the line on, laying the path the rest follow. */
+  private lead(x: number, y: number) {
     const n = this.trail.length
     if (!n || Math.hypot(x - this.trail[n - 2], y - this.trail[n - 1]) > 6) {
       this.trail.push(x, y)
       if (this.trail.length > 400) this.trail.splice(0, this.trail.length - 400)
     }
     this.head = { x, y }
-    this.still = 0
-    this.seen = true
   }
 
-  /** The spot `distance` behind the head along the pointer's path. */
+  /** The spot `distance` behind the head along its path. */
   private behind(distance: number) {
     let remaining = distance
     let { x, y } = this.head
@@ -249,9 +249,8 @@ class Conga {
     stage: { width: number; height: number; floorTop: number; open: boolean },
     leaving: { x: number; y: number } | null,
   ) {
-    this.still += seconds
-    if (this.still > 4.5) this.seen = false
-    if (!this.seen || leaving) this.parade(time, stage)
+    // Along the top of the crowd, swinging from one side to the other.
+    this.lead(stage.width * (0.5 + 0.42 * Math.sin(time * 0.23)), stage.floorTop - 30 + 14 * Math.sin(time * 0.61))
     if (stage.open && !leaving && this.dancers.length < this.max) {
       this.joinIn -= seconds
       if (this.joinIn <= 0) {
@@ -268,16 +267,8 @@ class Conga {
         })
       }
     }
-    const ring = this.seen && this.still > 1.2 && !leaving
-    const count = this.dancers.length
     this.dancers.forEach((dancer, i) => {
-      let target: { x: number; y: number }
-      if (leaving) target = leaving
-      else if (ring) {
-        const angle = time * 0.9 + (i / Math.max(1, count)) * Math.PI * 2
-        const radius = 50 + count * 3.4
-        target = { x: this.head.x + Math.cos(angle) * radius, y: this.head.y + 26 + Math.sin(angle) * radius * 0.55 }
-      } else target = this.behind(34 + i * 33)
+      const target = leaving ?? this.behind(34 + i * 33)
       const pull = 1 - Math.exp(-seconds * (leaving ? 5 : 8))
       const dx = target.x - dancer.x
       dancer.x += dx * pull
@@ -285,12 +276,6 @@ class Conga {
       if (Math.abs(dx) > 0.6) dancer.facing = dx > 0 ? 1 : -1
       if (leaving) dancer.alpha = clamp01(dancer.alpha - seconds * 0.8)
     })
-  }
-
-  /** No pointer: the line parades along the top of the crowd. */
-  private parade(time: number, stage: { width: number; floorTop: number }) {
-    this.point(stage.width * (0.5 + 0.42 * Math.sin(time * 0.23)), stage.floorTop - 30 + 14 * Math.sin(time * 0.61))
-    this.seen = false
   }
 
   /** Writes the dancers into the instance buffers; returns how many there are. */
@@ -377,8 +362,6 @@ export async function createScene(
   const fill = { value: 0 }
   const sink = { value: 0 }
   const door = { value: [-80, height - 80] }
-  const pointerUniform = { value: new Float32Array(4) }
-  const follow = { value: new Float32Array(6).fill(width / 2) }
   const walkway = { value: [-999, 0] }
   const floorUniform = { value: floorHeight() }
 
@@ -402,8 +385,6 @@ export async function createScene(
     uFloor: floorUniform,
     uSizes: { value: quality.sizes },
     uDoor: door,
-    uPointer: pointerUniform,
-    uFollow: follow,
     uWalkway: walkway,
   })
   const crowdMesh = new Mesh(crowdGeometry, crowdMaterial)
@@ -465,14 +446,13 @@ export async function createScene(
   }
   resize()
 
-  // Input: the pointer, from anywhere on the page (the canvases let it through).
+  // Input: the pointer, from anywhere on the page (the canvases let it through), for the follow-spot.
   const pointer = { x: width / 2, y: height / 2, mouse: false, at: -Infinity }
   const onPointer = (event: PointerEvent) => {
     pointer.x = event.clientX
     pointer.y = event.clientY
     pointer.mouse = event.pointerType === 'mouse'
     pointer.at = performance.now()
-    if (pointer.mouse) conga.point(event.clientX, event.clientY)
   }
   const onPointerOut = (event: PointerEvent) => {
     if (!event.relatedTarget) pointer.at = -Infinity
@@ -598,13 +578,10 @@ export async function createScene(
       goboLooks.value.set([cell, 0.38 * clubLevel.value, i % 2], i * 3)
     })
 
-    // The pointer: a follow-spot to read by, the crowd reaching up as it nears the floor, rows shuffling after it.
+    // The pointer: a follow-spot to read by. The crowd and the conga line pay it no attention.
     const recent = performance.now() - pointer.at < 3000 ? 1 : 0
     pointerPresence = damp(pointerPresence, recent, 3, seconds)
     spot.value.set([pointer.x, pointer.y, pointer.mouse ? 0.55 * clubLevel.value * pointerPresence : 0])
-    const near = smooth((pointer.y - height * 0.45) / (height * 0.4))
-    pointerUniform.value.set([pointer.x, pointer.y, near, pointerPresence * (still ? 0 : 1)])
-    for (let band = 0; band < 6; band++) follow.value[band] = damp(follow.value[band], pointer.x, 1.2 + band * 0.9, seconds)
 
     // The doorway, wherever the page has scrolled it. While it's down among the crowd, they keep it clear.
     const doorway = doorPoint()
@@ -614,7 +591,7 @@ export async function createScene(
 
     // The conga line.
     const floorTop = height - floorUniform.value
-    conga.update(seconds, time.value, { width, height, floorTop, open: open && !still }, leaving ? (leaving.toDoor && doorway ? doorway : { x: pointer.x, y: height + 140 }) : null)
+    conga.update(seconds, time.value, { width, height, floorTop, open: open && !still }, leaving ? (leaving.toDoor && doorway ? doorway : { x: conga.leader.x, y: height + 140 }) : null)
     congaGeometry.instanceCount = conga.write(congaPlace, congaLook, beat.value, energy.value, still)
     congaPlaceAttribute.needsUpdate = true
     congaLookAttribute.needsUpdate = true

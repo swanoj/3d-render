@@ -195,10 +195,6 @@ uniform float uClub;
 uniform float uFloor;
 uniform vec2 uSizes;
 uniform vec2 uDoor;
-/** x, y (px), how close to the floor it is (0–1), and whether there's a pointer at all (0–1). */
-uniform vec4 uPointer;
-/** Where each band of rows has got to, following the pointer: the front catches up first. */
-uniform float uFollow[6];
 /** The doorway's x (px), and how much room to leave in front of it (0 once the door's scrolled up out of the way). */
 uniform vec2 uWalkway;
 
@@ -215,18 +211,16 @@ void main() {
   float homeX = aHome.x * (uRes.x + 2.0 * margin) - margin;
   float feetY = uRes.y - uFloor + uFloor * pow(depth, 0.9) + size * 0.28 * depth;
 
-  int band = int(min(depth * 6.0, 5.0));
-  float x = homeX + clamp((uFollow[band] - homeX) * 0.08, -44.0, 44.0) * uPointer.w * (0.45 + 0.55 * depth);
+  float x = homeX;
   float fromDoor = x - uWalkway.x;
   x += sign(fromDoor) * uWalkway.y * smoothstep(150.0, 0.0, abs(fromDoor)) * 110.0;
 
-  // The dance: a hop on every beat, a stepped waddle like Casa's walk, a squash on landing. They reach up for the
-  // pointer when it comes near the floor, and everyone goes up on the drop.
+  // The dance: a hop on every beat, a stepped waddle like Casa's walk, a squash on landing, and everyone goes up on
+  // the drop.
   float t = fract(uBeat + aHome.z * 0.24);
   float hop = 4.0 * t * (1.0 - t);
   float energy = uEnergy * (0.55 + 0.9 * aMove.z);
   float lift = size * hop * (0.03 + 0.22 * energy);
-  lift += size * 0.5 * uPointer.z * uPointer.w * exp(-pow((x - uPointer.x) / 160.0, 2.0));
   lift += size * 0.8 * uDrop * (0.55 + 0.45 * aMove.z);
   float side = mod(floor(uBeat + aHome.z * 2.0), 2.0) * 2.0 - 1.0;
   float tilt = side * radians(2.0 + 7.0 * uEnergy);
