@@ -340,7 +340,7 @@ export function badgeTexture() {
     ctx.lineWidth = 2
     ctx.strokeRect(5, 5, 246, 54)
     ctx.fillStyle = '#3b2a14'
-    ctx.font = '700 34px Kalam, "Marker Felt", cursive'
+    ctx.font = '400 34px "Felt Tip Senior", "Marker Felt", cursive'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.fillText('CASA', 128, 35)

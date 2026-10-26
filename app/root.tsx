@@ -1,4 +1,3 @@
-import kalamBold from '@fontsource/kalam/files/kalam-latin-700-normal.woff2?url'
 import type { ReactNode } from 'react'
 import {
   isRouteErrorResponse,
@@ -44,7 +43,7 @@ export const links: Route.LinksFunction = () => [
   // CSS masks and the WebGL tile both fetch the logo in CORS mode, so the preload must match or it goes unused.
   { rel: 'preload', href: '/brand/logo.svg', as: 'image', type: 'image/svg+xml', crossOrigin: 'anonymous' },
   { rel: 'preload', href: markUrl('logo'), as: 'image', type: 'image/png', crossOrigin: 'anonymous' },
-  { rel: 'preload', href: kalamBold, as: 'font', type: 'font/woff2', crossOrigin: 'anonymous' },
+  { rel: 'preload', href: '/fonts/felt-tip-senior-regular.woff2', as: 'font', type: 'font/woff2', crossOrigin: 'anonymous' },
   { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
 ]
 

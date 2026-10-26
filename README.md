@@ -100,7 +100,7 @@ From the official Club Casa Brand Guideline (Alicyte Design):
 
 - **Colours:** Orange `#E95E27`, Charcoal `#212121`, Stone `#CCC6BA`, Cream `#EDE1D3`, and nothing else. These are the swatch colours in the guideline (and in every post in the pack); two of the hex labels printed on the palette page (`#AA1F23`, `#EE2324`) don't match their swatches.
 - **Colourways:** charcoal leads, as on the posts; cream is the paper stock for content and forms; orange is for moments (the mailing list, accents).
-- **Type:** Felt Tip Senior for the hand-drawn display (Kalam stands in: the font files weren't in the pack, so add them to `public/fonts/` with an `@font-face` in `app/app.css` when they arrive); Helvetica Neue Bold for line-ups and labels (Arimo off Apple devices); Roboto Mono in capitals for body copy.
+- **Type:** Felt Tip Senior, in capitals, for the hand-drawn display; Helvetica Neue Bold for line-ups and labels (Arimo off Apple devices); Roboto Mono in capitals for body copy. Felt Tip Senior is a licensed Mark Simonson font, so it isn't in this public repository: the WOFF2 is kept with the back office's files in Sanity and served from `/fonts/felt-tip-senior-regular.woff2` by `app/routes/font.ts` (the original TTF is in the branding pack's Fonts folder on Dropbox). Its `@font-face` in `app/app.css` scales it up 20%, since its capitals are shorter and wider than the stand-in the sizes were set with.
 - **Marks:** the official logos, emblem and mascot from the pack, in `public/brand/official/`, trimmed to their artwork. Each is drawn as a mask in the current colour, so one file serves every colourway.
 - **Mascot:** Casa (previously Otto).
 

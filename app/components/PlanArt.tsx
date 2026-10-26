@@ -23,7 +23,7 @@ const EMBLEM = { href: markUrl('emblem'), ratio: 212 / 257 }
 const TINTS = { orange, charcoal, stone, cream } as const
 type Tint = keyof typeof TINTS
 
-const HAND = 'Kalam, "Marker Felt", cursive'
+const HAND = '"Felt Tip Senior", "Marker Felt", cursive'
 const BOLD = '"Helvetica Neue", Helvetica, Arimo, Arial, sans-serif'
 const MONO = '"Roboto Mono", ui-monospace, monospace'
 
@@ -267,7 +267,7 @@ function BirthdayScene({ id }: { id: string }) {
       <g transform="translate(212 74)">
         <g className="bd-bubble">
           <path d="M0 0 Q-4 -24 30 -26 Q66 -26 62 -10 Q60 4 22 2 Q12 2 2 10 Q6 4 0 0 Z" fill={cream} stroke={charcoal} strokeWidth="1.4" />
-          <text x="31" y="-8" textAnchor="middle" fill={charcoal} style={{ font: `700 14px ${HAND}` }}>
+          <text x="31" y="-8" textAnchor="middle" fill={charcoal} style={{ font: `400 14px ${HAND}` }}>
             hooray!
           </text>
         </g>

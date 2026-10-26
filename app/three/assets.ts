@@ -9,7 +9,7 @@ export interface MarkAssets {
   check: HTMLImageElement
 }
 
-const HAND = '700 40px Kalam, "Marker Felt", cursive'
+const HAND = '400 40px "Felt Tip Senior", "Marker Felt", cursive'
 const BOLD = '700 40px "Helvetica Neue", Helvetica, Arimo, Arial, sans-serif'
 const MONO = '400 20px "Roboto Mono", ui-monospace, monospace'
 
