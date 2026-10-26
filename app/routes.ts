@@ -16,6 +16,8 @@ export default [
   route('artists/:slug', 'routes/artist.tsx'),
   route('api/newsletter', 'routes/api.newsletter.ts'),
   route('api/enquiry', 'routes/api.enquiry.ts'),
+  // A short address for the back office, which Sanity hosts.
+  route('admin', 'routes/admin.ts'),
   // The display face, Felt Tip Senior, passed through from the back office's assets (see the route).
   route('fonts/felt-tip-senior-regular.woff2', 'routes/font.ts'),
   // For search engines and AI assistants.

@@ -40,7 +40,7 @@ npm start        # serve the build on http://localhost:3000
 
 ## The back office
 
-The team edits the site in **Sanity Studio**, a web app in `studio/` that Sanity hosts (at `<name>.sanity.studio` once it's deployed). It's laid out around the week:
+The team edits the site in **Sanity Studio**, a web app in `studio/` that Sanity hosts at https://clubcasa.sanity.studio (the site's `/admin` goes there too). Editors sign in with their Sanity account once they're invited to the project. It's laid out around the week:
 
 - **Coming up** and **Past nights:** each night's date and doors, name, colourway and vinyl badge; the line-up in poster order (linked to acts' pages), its reveal phases and set times; tickets (not on sale, on sale with the link, sold out) and the price from; the poster, with a focal point for cropping, and photos from the night. The coming eight Saturdays are always there, just as the site shows them (doors at 10PM, wearing the weekly poster), ready to open and fill in: the seed script adds them, and so does opening the Studio (`studio/lib/weekly.ts`). **Cancelled** takes a night off the site. A new night is for a one-off on another date. Plain-English checks catch mistakes, like putting a night on sale without its ticket link.
 - **Every Saturday:** doors and close (which are also the opening hours every page shows), and the weekly posters a Saturday takes in turn until it has its own.
