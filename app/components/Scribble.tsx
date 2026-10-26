@@ -1,4 +1,4 @@
-import { useId, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useId, type CSSProperties, type ReactNode } from 'react'
 import type { MotifName } from '../content/types'
 import { useInView } from '../lib/useInView'
 
@@ -104,9 +104,45 @@ interface StrokesProps {
   style?: CSSProperties
 }
 
+/**
+ * How many times longer a stretched drawing's strokes are on screen than in its own units. Its pen keeps one weight
+ * however it's stretched, which also measures the dashes that draw it on screen, while pathLength counts the
+ * drawing's own units, so without this the pen stops part of the way round.
+ */
+function onScreenLength(svg: SVGSVGElement) {
+  const box = svg.getBoundingClientRect()
+  const { width, height } = svg.viewBox.baseVal
+  const scaleX = box.width / width
+  const scaleY = box.height / height
+  let longest = 0
+  for (const path of svg.querySelectorAll('path')) {
+    const length = path.getTotalLength()
+    let onScreen = 0
+    let last = path.getPointAtLength(0)
+    for (let step = 1; step <= 64; step++) {
+      const point = path.getPointAtLength((length * step) / 64)
+      onScreen += Math.hypot((point.x - last.x) * scaleX, (point.y - last.y) * scaleY)
+      last = point
+    }
+    longest = Math.max(longest, onScreen / length)
+  }
+  return longest
+}
+
 function Strokes({ viewBox, strokes, className, delay = 0, flip = false, stretch = false, style }: StrokesProps) {
   const [ref, drawn] = useInView<SVGSVGElement>({ once: true, threshold: 0.35 })
   const filter = `${useId().replace(/:/g, '')}-marker`
+
+  useEffect(() => {
+    const svg = ref.current
+    if (!stretch || !svg) return
+    const measure = () => svg.style.setProperty('--stretch', (onScreenLength(svg) * 1.02).toFixed(3))
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(svg)
+    return () => observer.disconnect()
+  }, [ref, stretch])
+
   return (
     <svg
       ref={ref}

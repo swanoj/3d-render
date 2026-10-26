@@ -782,7 +782,12 @@ html:has(.sheet[open]) {
   line-height: 1.8;
 }
 
+/* The ring round the days reaches past them, so the gap keeps it off the time, which drops below whole when short of room. */
 .about-hours {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35em 0.75em;
   margin-top: 14px;
   font-size: clamp(26px, 2.8vw, 40px);
 }
@@ -1214,9 +1219,12 @@ html:has(.sheet[open]) {
   transform: scaleX(-1);
 }
 
+/* Its dashes are measured on screen, so they're lengthened to match the stretch (--stretch, set in Scribble.tsx). */
 .scribble--stretch path {
   vector-effect: non-scaling-stroke;
   stroke-width: 3px;
+  stroke-dasharray: var(--stretch, 4);
+  stroke-dashoffset: var(--stretch, 4);
 }
 
 /* A handwritten aside with its arrow. Positioned by the class it's given. */
